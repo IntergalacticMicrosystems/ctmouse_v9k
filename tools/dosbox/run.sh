@@ -1,6 +1,6 @@
 #!/bin/sh
-# Headless DOSBox smoke test for CTMV9K.EXE (plan section 9.4). Usage: tools/dosbox/run.sh [driver.exe]
-# Needs nasm and dosbox. Default driver: ctmv9k.exe in the repo root (make v9k).
+# Headless DOSBox smoke test for CTMOUSEV.EXE (plan section 9.4). Usage: tools/dosbox/run.sh [driver.exe]
+# Needs nasm and dosbox. Default driver: ctmousev.exe in the repo root (make v9k).
 #
 # DOSBox is a PC: E000h is plain RAM (no 7201/8253/8259, INT 41h never fires), CRTC reads return
 # RAM, F000h is ROM and DOS reports 5.0. So this tests the transient part only: option parsing,
@@ -12,13 +12,13 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
-DRV=${1:-$REPO/ctmv9k.exe}
+DRV=${1:-$REPO/ctmousev.exe}
 WORK=${TMPDIR:-/tmp}/ctmv9k_dosbox_test
 [ -f "$DRV" ] || { echo "no driver $DRV (make v9k)"; exit 2; }
 rm -rf "$WORK"; mkdir -p "$WORK"
 nasm -f bin "$HERE/harness.asm" -o "$WORK/TEST.COM"
 nasm -f bin "$REPO/utility/v9kmt.asm" -o "$WORK/V9KMT.COM"
-cp "$DRV" "$WORK/CTMV9K.EXE"
+cp "$DRV" "$WORK/CTMOUSEV.EXE"
 cat > "$WORK/test.conf" <<CONF
 [sdl]
 output=surface

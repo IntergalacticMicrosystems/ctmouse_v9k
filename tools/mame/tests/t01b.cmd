@@ -3,7 +3,7 @@ waittext >
 waitidle 1
 sh @FEED@ --hello M --port $(cat @RUN@/pty_b) > @RUN@/feed.log 2>&1 & echo $! > @RUN@/feed.pid
 wait 0.5
-type B:CTMV9K /SB\n
+type B:CTMOUSEV /SB\n
 waittext Installed
 sh kill $(cat @RUN@/feed.pid)
 waitidle 1

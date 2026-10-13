@@ -1,6 +1,6 @@
 # MAME victor9k test harness
 
-Headless MAME `victor9k` for testing CTMV9K: boot DOS 2.11, type commands, read the screen as
+Headless MAME `victor9k` for testing CTMOUSEV: boot DOS 2.11, type commands, read the screen as
 text, dump memory, attach serial port A and/or B to a host pty at 1200 baud 7N1, and put files
 on a second floppy.
 
@@ -20,7 +20,7 @@ original is never written), `V9K_RUN=${TMPDIR:-/tmp}/v9kmame` (cfg, nvram, snaps
 ## Typical run
 
 ```sh
-tools/mame/mkdisk.sh /tmp/b.img ctmv9k.exe utility/v9kmt.com     # drive B:
+tools/mame/mkdisk.sh /tmp/b.img ctmousev.exe utility/v9kmt.com     # drive B:
 cat > /tmp/t.cmd <<'X'
 waittext >
 waitidle 1

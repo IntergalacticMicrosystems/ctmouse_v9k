@@ -1,4 +1,4 @@
-# Test 10: t10c: --hello M, CTMV9K /SA /3 /L, feeder proto ms3, scripts[:held]: s10_pm.txt s10_mv.txt:M s10_rm.txt:M s10_pl.txt s10_rl.txt:L
+# Test 10: t10c: --hello M, CTMOUSEV /SA /3 /L, feeder proto ms3, scripts[:held]: s10_pm.txt s10_mv.txt:M s10_rm.txt:M s10_pl.txt s10_rl.txt:L
 waittext >
 waitidle 1
 sh @FEED@ --hello M --port $(cat @RUN@/pty_a) > @RUN@/feed.log 2>&1 & echo $! > @RUN@/feed.pid

@@ -1,4 +1,4 @@
-; ctmv9k-video.inc - Victor 9000 video layer for CTMV9K (plan sections 4.1-4.5)
+; ctmv9k-video.inc - Victor 9000 video layer for CTMOUSEV (plan sections 4.1-4.5)
 ;
 ; JWasm, 8086 only, resident code. Part of the CuteMouse port, GPL-2.
 ; Tested in DOSBox against the Python oracle (tools/video/, tools/v9kmouse.py).

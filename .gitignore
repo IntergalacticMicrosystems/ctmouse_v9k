@@ -1,7 +1,7 @@
-ctmv9k.exe
-ctmv9k.bin
+ctmousev.exe
+ctmousev.bin
 *.bin
 ctmouse.ref
 __pycache__/
 bin2exe
-ctmv9k-chain41.exe
+ctmousev-chain41.exe

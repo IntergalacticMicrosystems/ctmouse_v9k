@@ -1,4 +1,4 @@
-; V9KMT.COM - INT 33h test client for CTMV9K (Victor 9000). NASM:
+; V9KMT.COM - INT 33h test client for CTMOUSEV (Victor 9000). NASM:
 ;     nasm -f bin -o utility/v9kmt.com utility/v9kmt.asm
 ; Uses INT 21h only (02h/09h output, 06h keyboard, 35h vector): no PC BIOS calls, so it runs
 ; under Victor DOS and, for the API checks, in DOSBox. Output goes to stdout (redirectable).

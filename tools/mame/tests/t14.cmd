@@ -1,4 +1,4 @@
-# Test 14: driver on A, HK41 hooks INT 41h after us, CTMV9K /U -> unload failed, EL 2, vectors/IMR unchanged
+# Test 14: driver on A, HK41 hooks INT 41h after us, CTMOUSEV /U -> unload failed, EL 2, vectors/IMR unchanged
 waittext >
 waitidle 1
 sh @FEED@ --hello M --port $(cat @RUN@/pty_a) > @RUN@/feed.log 2>&1 & echo $! > @RUN@/feed.pid

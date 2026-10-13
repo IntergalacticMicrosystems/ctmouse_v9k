@@ -18,7 +18,7 @@ at `/opt/watcom/binl64`; `nasm` and `dosbox` are also installed.
 
 ```sh
 make              # builds bin2exe, then ctmouse.exe (English messages)
-make v9k          # ctmv9k.exe, the Victor 9000 driver (ctmv9k.asm + ctmv9k-en.msg)
+make v9k          # ctmousev.exe, the Victor 9000 driver (ctmv9k.asm + ctmv9k-en.msg)
 make verify-pc    # PC build must be byte-identical to the pinned PC_BASE commit (gate for every V9K change)
 make alllang      # ctm-<lang>.exe for every ctm-*.msg
 make clean        # removes .bin/.exe intermediates (keeps bin2exe)
@@ -26,7 +26,7 @@ make distclean    # also removes bin2exe and all ctm-*.exe
 ```
 
 `make v9k` runs `tools/ressize.py`, which reads the `RESSZ` marker (resident size, `LIMIT`) from
-`ctmv9k.bin` and fails the build when the resident part exceeds `LIMIT`. The assembler's own
+`ctmousev.bin` and fails the build when the resident part exceeds `LIMIT`. The assembler's own
 `if`/`%echo` cannot be used for this: they see pass-1 addresses, which are short of the final size.
 
 Pipeline: `jwasm -c -bin -0 -D?LANG=ctm-en -Foctmouse.bin ctmouse.asm` produces a flat .COM-style
@@ -81,7 +81,7 @@ reading caller registers must use those equates, never literal offsets.
 
 ## Victor 9000 port
 
-The port is a fork: `ctmv9k.asm` + `ctmv9k-en.msg` build `ctmv9k.exe`; `ctmouse.asm`, `ctm-*.msg`
+The port is a fork: `ctmv9k.asm` + `ctmv9k-en.msg` build `ctmousev.exe`; `ctmouse.asm`, `ctm-*.msg`
 and `asmlib/` are never edited (`make verify-pc`). The design, hardware map, dispositions of every
 section of `ctmouse.asm`, phases and test plan are in `doc/v9k-port-plan.md`; read it before
 changing `ctmv9k.asm`. Hardware references live outside the repo in

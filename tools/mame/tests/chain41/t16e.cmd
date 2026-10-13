@@ -1,4 +1,4 @@
-# Baseline: A41 alone (no CTMV9K) receives 1360 text bytes on pty A.
+# Baseline: A41 alone (no CTMOUSEV) receives 1360 text bytes on pty A.
 waittext >
 waitidle 1
 type B:A41\n

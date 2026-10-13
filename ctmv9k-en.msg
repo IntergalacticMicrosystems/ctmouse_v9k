@@ -30,7 +30,7 @@ S_CRLF		db nl,eos
 
 Copyright	db nl,'CuteMouse v',CTMRELEASE,' [FreeDOS] for the Victor 9000',nl,eos
 Syntax		label byte
-    db 1,'Usage: CTMV9K /SA | /SB [/3] [/L] [/R[h[v]]]     CTMV9K /U     CTMV9K /?',nl,nl
+    db 1,'Usage: CTMOUSEV /SA | /SB [/3] [/L] [/R[h[v]]]   CTMOUSEV /U   CTMOUSEV /?',nl,nl
     db '  /SA, /SB - serial mouse on port A or B (A or B alone also works)',nl
     db '  /3	   - force 3-button mode if Microsoft mouse found',nl
 if USE_MSYS

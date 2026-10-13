@@ -2795,7 +2795,7 @@ sayASCIIZ_	endp
 ;========================================================================
 
 unloadTSR	proc
-		call	getCuteMouse		; check if CTMV9K installed
+		call	getCuteMouse		; check if CTMOUSEV installed
 		mov	di,dataref:E_nocute	; 'CuteMouse driver is not installed!'
 		jne	EXITMSG
 

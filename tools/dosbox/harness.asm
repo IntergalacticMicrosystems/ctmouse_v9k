@@ -1,4 +1,4 @@
-; TEST.COM - DOSBox smoke test for CTMV9K.EXE (see run.sh). Adapted from
+; TEST.COM - DOSBox smoke test for CTMOUSEV.EXE (see run.sh). Adapted from
 ; Victor9000-Software/mouse/dosbox_test/harness.asm (the MOUSE.COM test).
 ; Redirects stdout to OUT.TXT, then EXECs, logging INT 33h (+ 5 signature bytes), INT 41h, the
 ; IMR byte E000:0001, the largest free block (48h BX=FFFFh) and the child return code:
@@ -95,7 +95,7 @@ new08:  cmp byte [cs:armed],0
         pop es
 .chain: jmp far [cs:old08]
 
-run_drv:                                ; DX -> command tail, runs CTMV9K.EXE
+run_drv:                                ; DX -> command tail, runs CTMOUSEV.EXE
         mov si,dx
         mov dx,prog
 run:                                    ; DX -> program name, SI -> tail
@@ -263,7 +263,7 @@ hex1:   and al,0xf
         jmp putc
 
 fname:  db 'OUT.TXT',0
-prog:   db 'CTMV9K.EXE',0
+prog:   db 'CTMOUSEV.EXE',0
 prog_mt: db 'V9KMT.COM',0
 tail_none: db 0,13
 tail_sa: db 4,' /SA',13

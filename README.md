@@ -1,17 +1,17 @@
 # ctmouse_v9k
 Work on a port to Victor 9000 DOS and hardware
 
-## CTMV9K: CuteMouse for the Victor 9000 / Sirius 1
+## CTMOUSEV: CuteMouse for the Victor 9000 / Sirius 1
 
-`make v9k` builds `ctmv9k.exe` from `ctmv9k.asm`, `ctmv9k-video.inc` and `ctmv9k-en.msg`. It is a
+`make v9k` builds `ctmousev.exe` from `ctmv9k.asm`, `ctmv9k-video.inc` and `ctmv9k-en.msg`. It is a
 CuteMouse 2.1b4 derivative for the Victor 9000's own hardware (uPD7201 serial, 8259 at E000:0000,
 HD46505 CRTC, 800x400 column-major bitmap) and needs only an 8088 and MS-DOS 2.0+. The design is in
 `doc/v9k-port-plan.md`.
 
 ```
-CTMV9K /SA | /SB [/3] [/L] [/R[h[v]]]     install on serial port A or B (bare A or B also works)
-CTMV9K /U                                 unload (powers the mouse off: RTS drops)
-CTMV9K /?                                 help
+CTMOUSEV /SA | /SB [/3] [/L] [/R[h[v]]]     install on serial port A or B (bare A or B also works)
+CTMOUSEV /U                                 unload (powers the mouse off: RTS drops)
+CTMOUSEV /?                                 help
 ```
 
 - Microsoft serial mice (1200 baud 7N1), Logitech 3-button (`M3`) and Microsoft wheel (`MZ`) mice
@@ -32,7 +32,7 @@ CTMV9K /?                                 help
   leaves a reverse-video cell the driver does not own (seen in MAME, test 5). Move the cursor or
   hide it (fn 2) before long scrolling output.
 - Resident size is about 2.5 KB including the PSP (MOUSE.DEV: 3.0 KB); `tools/ressize.py` gates it.
-- Reinstalling over a running CTMV9K reloads it in place (same port: no re-detection). Moving the
+- Reinstalling over a running CTMOUSEV reloads it in place (same port: no re-detection). Moving the
   mouse from port B to A resets 7201 channel A, which also touches the chip's shared interrupt
   logic; unload first (`/U`) if the old port must keep working until the switch. Another
   INT 41h owner installed after the driver makes `/U` refuse, as it should.
@@ -41,7 +41,7 @@ CTMV9K /?                                 help
   INT 41h (a program that enables 7201 receive interrupts on the other channel) is not supported by
   the default build: the driver EOIs every INT 41h itself, and because the 8259 is edge-triggered
   and the 7201 INT line stays high while any source is pending, both the mouse and the other owner
-  stop until a reboot. `make v9k-chain41` builds `ctmv9k-chain41.exe`, which chains to the previous
+  stop until a reboot. `make v9k-chain41` builds `ctmousev-chain41.exe`, which chains to the previous
   INT 41h owner; it works in MAME and awaits confirmation on real hardware. Polled users must perform
   their pointer/value register pairs with interrupts disabled and must not change WR2A; the 7201
   end-of-interrupt goes through channel A's control port even when the mouse is on B.

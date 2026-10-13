@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""v9kmouse.py - host-side serial mouse simulator and cursor oracle for the CTMV9K port.
+"""v9kmouse.py - host-side serial mouse simulator and cursor oracle for the CTMOUSEV port.
 
 Feeds Microsoft-protocol mouse bytes (1200 baud 7N1) into MAME's victor9k rs232 pty, and holds the
 per-pixel graphics cursor oracle of doc/v9k-port-plan.md section 4.4 (test 17).
 
 Protocols (--proto, or set by --hello / the script command "hello"):
   ms   plain 2-button Microsoft ('M'), 3 bytes per packet; the middle button is not sent.
-  ms3  Microsoft with CTMV9K /3: a packet with no motion and no L/R change toggles the middle
+  ms3  Microsoft with CTMOUSEV /3: a packet with no motion and no L/R change toggles the middle
        button (MSLTCODE2 patched to JNZ). So "move 0 0" is skipped in this mode.
   lt   Logitech 3-button ('M3'): while M is held every packet carries a 4th byte 20h; the release
        is sent as a packet with a 4th byte 00h. CuteMouse treats a packet *without* a 4th byte

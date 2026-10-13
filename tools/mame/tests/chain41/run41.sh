@@ -1,6 +1,6 @@
 #!/bin/sh
 # CHAIN41 test runner: run41.sh test.cmd [run.sh options]
-# Env: V9K_RUN (work dir), CTM0 / CTM1 (CHAIN41=0 / =1 builds; default: repo ctmv9k.exe for both),
+# Env: V9K_RUN (work dir), CTM0 / CTM1 (CHAIN41=0 / =1 builds; default: repo ctmousev.exe for both),
 #      CFG = a | b | ab | none: CONFIG.SYS on drive A: loading PORTA/PORTB at 1200 7N1 (default a).
 #      bits(6) is deliberate: PORTA 2.4/PORTB 2.3 write WR3 = A1h for bits(7) (D7D6 = 10 = 6 bits
 #      in z80sio.cpp) and 61h (7 bits) for bits(6).
@@ -15,8 +15,8 @@ name=$(basename "$t" .cmd)
 mkdir -p "$RUN/disk"
 rm -f "$RUN"/done* "$RUN/pids"
 for f in serrd a41; do nasm -f bin -o "$RUN/disk/$f.com" "$HERE/$f.asm" || exit 1; done
-cp "${CTM0:-$REPO/ctmv9k.exe}" "$RUN/disk/ctm0.exe"
-cp "${CTM1:-$REPO/ctmv9k.exe}" "$RUN/disk/ctm1.exe"
+cp "${CTM0:-$REPO/ctmousev.exe}" "$RUN/disk/ctm0.exe"
+cp "${CTM1:-$REPO/ctmousev.exe}" "$RUN/disk/ctm1.exe"
 cp "$REPO/utility/v9kmt.com" "$RUN/disk/"
 "$REPO/tools/mame/mkdisk.sh" "$RUN/b.img" "$RUN/disk" >/dev/null || exit 1
 cp /root/sync/mame-files/victor9k/disks/dos211.img "$RUN/a.img"

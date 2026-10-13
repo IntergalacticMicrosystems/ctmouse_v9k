@@ -21,7 +21,7 @@ ASFLAGS=-c -bin -0
 
 # The Victor 9000 build (ctmv9k.asm) is 8086-only and independent of ASFLAGS.
 # `make v9k-chain41` builds the experimental INT 41h sharing variant (-DCHAIN41=1)
-# as ctmv9k-chain41.exe, a separate target so the two configurations never alias.
+# as ctmousev-chain41.exe, a separate target so the two configurations never alias.
 V9KFLAGS=-c -bin -0
 
 # Pinned baseline commit for the PC build: ctmouse.exe must stay byte-identical to it
@@ -31,19 +31,19 @@ PC_BASE=1d93f1e
 
 all: ctmouse.exe
 
-v9k: ctmv9k.exe
+v9k: ctmousev.exe
 
-ctmv9k.exe: ctmv9k-en.msg ctmv9k.asm ctmv9k-video.inc bin2exe
-	$(AS) $(V9KFLAGS) -D\?LANG=ctmv9k-en -Foctmv9k.bin ctmv9k.asm
-	python3 tools/ressize.py ctmv9k.bin
-	./bin2exe -s 512 ctmv9k.bin ctmv9k.exe
+ctmousev.exe: ctmv9k-en.msg ctmv9k.asm ctmv9k-video.inc bin2exe
+	$(AS) $(V9KFLAGS) -D\?LANG=ctmv9k-en -Foctmousev.bin ctmv9k.asm
+	python3 tools/ressize.py ctmousev.bin
+	./bin2exe -s 512 ctmousev.bin ctmousev.exe
 
-v9k-chain41: ctmv9k-chain41.exe
+v9k-chain41: ctmousev-chain41.exe
 
-ctmv9k-chain41.exe: ctmv9k-en.msg ctmv9k.asm ctmv9k-video.inc bin2exe
-	$(AS) $(V9KFLAGS) -DCHAIN41=1 -D\?LANG=ctmv9k-en -Foctmv9k-chain41.bin ctmv9k.asm
-	python3 tools/ressize.py ctmv9k-chain41.bin
-	./bin2exe -s 512 ctmv9k-chain41.bin ctmv9k-chain41.exe
+ctmousev-chain41.exe: ctmv9k-en.msg ctmv9k.asm ctmv9k-video.inc bin2exe
+	$(AS) $(V9KFLAGS) -DCHAIN41=1 -D\?LANG=ctmv9k-en -Foctmousev-chain41.bin ctmv9k.asm
+	python3 tools/ressize.py ctmousev-chain41.bin
+	./bin2exe -s 512 ctmousev-chain41.bin ctmousev-chain41.exe
 
 verify-pc: ctmouse.exe
 	git show $(PC_BASE):ctmouse.exe > ctmouse.ref
@@ -69,7 +69,7 @@ bin2exe: bin2exe.c
 clean:
 	-$(RM) *.bin
 	-$(RM) ctmouse.exe
-	-$(RM) ctmv9k.exe ctmv9k-chain41.exe
+	-$(RM) ctmousev.exe ctmousev-chain41.exe
 	-$(RM) ctmouse.ref
 	-$(RM) *.o
 	-$(RM) *.lst

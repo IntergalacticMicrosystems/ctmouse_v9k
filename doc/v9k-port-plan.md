@@ -10,7 +10,7 @@ for `ctmouse.asm` at commit 1d93f1e (5118 lines). Offsets come from a real build
 
 ## 1. Summary and goals
 
-Build `CTMV9K.EXE`, a CuteMouse 2.1b4 derivative for the Victor 9000 / Sirius 1:
+Build `CTMOUSEV.EXE`, a CuteMouse 2.1b4 derivative for the Victor 9000 / Sirius 1:
 
 - serial Microsoft mouse (3-byte, 1200 baud 7N1), plus the Logitech 3-button and the MS wheel
   4th byte, on 7201 channel A or B (chosen on the command line, no default);
@@ -365,7 +365,7 @@ hide the cursor before they switch. `MODEGUARD` (draw and restore, 4.1) is the s
 ### 5.1 Syntax
 
 ```
-CTMV9K /SA | /SB [/3] [/L] [/R[h[v]]]      CTMV9K /U      CTMV9K /?      (bare A or B also accepted)
+CTMOUSEV /SA | /SB [/3] [/L] [/R[h[v]]]      CTMOUSEV /U      CTMOUSEV /?      (bare A or B also accepted)
 ```
 
 `/SA`/`/SB` = serial port A or B, reusing CuteMouse's `/S` slot. **There is no default**: without a
@@ -388,7 +388,7 @@ garbage (igc `mouse.c` 72-74).
 - `'MOUSE'` present: preset ES:DI = 0 and call fn 4Dh (MOUSE.DEV ignores AL > 16). **Ours** only if
   DI equals this build's `IDstring` offset and the string matches. This is CuteMouse's exact-layout
   test (`getCuteMouse`, line 4606) and the condition for copying a new image over the resident one;
-  a name match alone is not enough. Other `'MOUSE'` drivers (MOUSE.DEV/COM, or an older CTMV9K
+  a name match alone is not enough. Other `'MOUSE'` drivers (MOUSE.DEV/COM, or an older CTMOUSEV
   layout): "already installed", exit 1. `mousedrv` only ever calls an "ours" vector.
 
 **Transaction 1, fresh install** (no driver or unknown handler):
@@ -455,7 +455,7 @@ INT 2Fh, INT 10h, INT 15h.
 - Default mickey ratio 8/8 (MOUSE.DEV) instead of 8/16 (applied; the first build kept 8/16). Acceleration is CuteMouse's sensitivity
   curve and double-speed threshold (**decided**), not MOUSE.DEV's |d|>2 doubling (which has bug 2).
   `/R` tunes it.
-- Program name **`CTMV9K.EXE`** (decided). INT FBh (MOUSE.DEV's private API) is not implemented:
+- Program name **`CTMOUSEV.EXE`** (decided). INT FBh (MOUSE.DEV's private API) is not implemented:
   it has no known client.
 
 ## 7. Memory budget (resident, bytes): a target, not a result
@@ -498,11 +498,11 @@ shrank the uninitialized data to 102h and the build hung).
 ```make
 V9KFLAGS=-c -bin -0          # independent of ASFLAGS, the V9K build is 8086-only
 
-v9k: ctmv9k.exe
+v9k: ctmousev.exe
 
-ctmv9k.exe: ctmv9k-en.msg ctmv9k.asm bin2exe
-	$(AS) $(V9KFLAGS) -D\?LANG=ctmv9k-en -Foctmv9k.bin ctmv9k.asm
-	./bin2exe -s 512 ctmv9k.bin ctmv9k.exe
+ctmousev.exe: ctmv9k-en.msg ctmv9k.asm bin2exe
+	$(AS) $(V9KFLAGS) -D\?LANG=ctmv9k-en -Foctmousev.bin ctmv9k.asm
+	./bin2exe -s 512 ctmousev.bin ctmousev.exe
 
 PC_BASE=1d93f1e              # pinned baseline commit, not HEAD
 verify-pc: ctmouse.exe        # PC build must stay byte-identical to the pinned baseline
@@ -513,13 +513,13 @@ verify-pc: ctmouse.exe        # PC build must stay byte-identical to the pinned 
 
 The recipe must fail when `cmp` fails. A trailing `; rm` would mask its status.
 
-- `clean`: add `ctmv9k.exe`. `alllang` and the `%.exe` pattern rule stay as they are. The explicit
-  rule wins for `ctmv9k.exe`, and nobody should ask for `ctmv9k-en.exe`.
+- `clean`: add `ctmousev.exe`. `alllang` and the `%.exe` pattern rule stay as they are. The explicit
+  rule wins for `ctmousev.exe`, and nobody should ask for `ctmv9k-en.exe`.
 - `ctmv9k-en.msg`: same `%include ?LANG.msg` mechanism and macros, with its own labels (banner,
   `Syntax`, errors, `E_mousedev`, `E_nomouse`, `S_port`, `S_inMS`/`S_inLT`, ...). `S_wheel` stays. The PS/2, COM
   and VGA strings go. English only at first.
-- `ctmv9k.bin` is already a valid .COM image (`org 100h`). Ship the .EXE for consistency, and
-  optionally also `CTMV9K.COM`.
+- `ctmousev.bin` is already a valid .COM image (`org 100h`). Ship the .EXE for consistency, and
+  optionally also `CTMOUSEV.COM`.
 - `ctmouse.asm`, `ctm-*.msg` and `asmlib/` are never edited. `make verify-pc` is the gate for every
   phase. Update `CLAUDE.md`/README with the new target when phase 0 lands.
 
@@ -659,7 +659,7 @@ All open questions were decided by the user on 2026-10-12:
 - Wheel support kept (`USE_WHEEL` = 1); Mouse Systems stays a compile switch, default off.
 - No default port: `/SA`, `/SB` or a bare `A`/`B` is required to install.
 - igc is patched to read the port from fn 24h (DL = port, DH = 'V'); release dependency.
-- Program name `CTMV9K.EXE`.
+- Program name `CTMOUSEV.EXE`.
 - No INT FBh private API.
 - CuteMouse's own sensitivity curve.
 - **Hardware text cursor dropped** (`HWCURSOR` = 0): fn 0Ah with BX != 0 falls back to the software

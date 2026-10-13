@@ -1,4 +1,4 @@
-# Test 13: driver on A, CTMV9K /SB with no feeder on B -> EL 2, driver on A still works. -p AB
+# Test 13: driver on A, CTMOUSEV /SB with no feeder on B -> EL 2, driver on A still works. -p AB
 waittext >
 waitidle 1
 sh @FEED@ --hello M --port $(cat @RUN@/pty_a) > @RUN@/feed.log 2>&1 & echo $! > @RUN@/feed.pid

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Run one MAME test command file: tools/mame/tests/run_test.sh name.cmd [run.sh options]
-# Builds drive B: from ctmv9k.exe, utility/v9kmt.com and tools/mame/tests/disk/* (if present),
+# Builds drive B: from ctmousev.exe, utility/v9kmt.com and tools/mame/tests/disk/* (if present),
 # substitutes @RUN@ (V9K_RUN), @REPO@ (repo root) and @FEED@ (v9kmouse.py) in the command file,
 # and writes the MAME output to $V9K_RUN/<name>.log.
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -11,7 +11,7 @@ t=$1; shift
 name=$(basename "$t" .cmd)
 mkdir -p "$RUN"
 rm -f "$RUN"/flag_*
-EXE=${CTMV9K_EXE:-$REPO/ctmv9k.exe}
+EXE=${CTMOUSEV_EXE:-$REPO/ctmousev.exe}
 extra=; [ -d "$HERE/disk" ] && extra="$HERE/disk"
 "$REPO/tools/mame/mkdisk.sh" "$RUN/b.img" "$EXE" "$REPO/utility/v9kmt.com" $extra >/dev/null || exit 1
 sed -e "s|@RUN@|$RUN|g" -e "s|@REPO@|$REPO|g" -e "s|@FEED@|python3 $REPO/tools/v9kmouse.py|g" \
