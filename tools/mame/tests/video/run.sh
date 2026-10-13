@@ -10,7 +10,9 @@ export V9K_RUN=$RUN
 name=$(basename "$1" .cmd); shift
 mkdir -p "$RUN/$name"
 rm -f "$RUN"/flag_* "$RUN/$name"/*
-"$REPO/tools/mame/mkdisk.sh" "$RUN/b.img" "${CTMV9K_EXE:-$REPO/ctmv9k.exe}" "$REPO/utility/v9kmt.com" \
+cp "${CTMV9K_EXE:-$REPO/ctmv9k.exe}" "$RUN/$name/ctmv9k.exe"     # snapshot: the repo binary may be rebuilt
+md5sum "$RUN/$name/ctmv9k.exe" | tee "$RUN/$name.md5"
+"$REPO/tools/mame/mkdisk.sh" "$RUN/b.img" "$RUN/$name/ctmv9k.exe" "$REPO/utility/v9kmt.com" \
 	"$RAT/PICASSO.EXE" "$RAT/PICASSO.CHR" "$RAT/PICASSO.SCR" "$RAT/STANDARD.PAT" "$RAT/GETSCRN.COM" >/dev/null || exit 1
 sed -e "s|@RUN@|$RUN|g" -e "s|@OUT@|$RUN/$name|g" -e "s|@REPO@|$REPO|g" \
 	-e "s|@FEED@|python3 $REPO/tools/v9kmouse.py|g" "$HERE/$name.cmd" > "$RUN/$name.cmd"

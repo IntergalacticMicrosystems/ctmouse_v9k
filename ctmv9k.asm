@@ -44,7 +44,9 @@ FOOLPROOF	 = 1		; check driver arguments validness
 USE_MSYS	 equ 0		; include Mouse Systems decoder and /M option
 USE_WHEEL	 equ 1		; include MS wheel mouse (4th byte) support
 MODEGUARD	 equ 1		; render target guard on draw/restore
-CHAIN41		 equ 0		; chain the old INT 41h handler (phase 3)
+ifndef CHAIN41			; make v9k V9KDEFS=-DCHAIN41=1 builds the sharing variant
+CHAIN41		 equ 0		; chain the old INT 41h handler (phase 3, MAME-proven,
+endif				;  off until confirmed on real hardware)
 HWCURSOR	 equ 0		; 6845 hardware text cursor in fn 0Ah (must be 0)
 
 ;------------------------------------------------------------------------
@@ -334,7 +336,10 @@ if CHAIN41
 		je	@@eoi
 		pushf
 		call	[oldIRQaddr]		; owner serves it and sends both EOIs
-		j	@@notify
+		j	@@drain			; our channel may have received
+						;  meanwhile: drain again, then retest
+						;  RR0A bit 1 (INT must drop: the 8259
+						;  is edge-triggered, phase 3 test)
 @@eoi:
 endif
 		mov	byte ptr es:[SIO_CTRL_A],WR0_EOI ; WR0A: end of interrupt
@@ -350,8 +355,8 @@ IRQhandler	endp
 ;
 ; In:	none
 ; Out:	none
-; Use:	IOctrl
-; Modf:	AX, CX, BX, ES, IOdone
+; Use:	IOctrl, oldIRQaddr
+; Modf:	AX, CX, BX, SI, DI, ES, IOdone
 ; Call:	none
 ;
 enable7201	proc
@@ -359,9 +364,15 @@ enable7201	proc
 		mov	es,ax			; ES=0: interrupt vector table
 		pushf
 		cli				; keep the caller's IF (popf)
+		mov	si,TSRdref:oldIRQaddr	; hook INT 41h only if it still holds
+		mov	di,IVT_INT41		;  the vector found at install (or
+		cmpsw				;  restored by fn 1Fh); a later owner
+		jne	@@en_hooked		;  keeps it and chains to us, and fn
+		cmpsw				;  1Fh refuses (phase 3 test t16d)
+		jne	@@en_hooked
 		mov	word ptr es:[IVT_INT41],TSRcref:IRQhandler
 		mov	es:[IVT_INT41+2],cs	; INT 41h -> IRQhandler (no INT 21h)
-		mov	ax,IO_SEG
+@@en_hooked:	mov	ax,IO_SEG
 		mov	es,ax
 		mov	bx,[IOctrl]
 		mov	cx,4			; FIFO holds 3 bytes: bounded drain

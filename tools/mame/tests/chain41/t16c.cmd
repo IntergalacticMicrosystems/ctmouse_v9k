@@ -25,7 +25,8 @@ items :7l
 sh DONE=@RUN@/doneA python3 @HERE@/sendtext.py $(cat @RUN@/pty_a) --lines 40 > @RUN@/sendA.log 2>&1 & echo $! >> @RUN@/pids
 sh python3 @REPO@/tools/v9kmouse.py --script @HERE@/mouse200.txt --port $(cat @RUN@/pty_b) > @RUN@/sendB.log 2>&1 & echo $! >> @RUN@/pids
 waitfile @RUN@/doneA 120
-wait 2
+# the pty is drained into MAME long before the 7201 has clocked it in: 1360 bytes = 11.3 s
+wait 14
 type B:A41 S\n
 waitidle 2
 sh cat @RUN@/sendA.log

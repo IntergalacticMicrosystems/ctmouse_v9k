@@ -19,8 +19,10 @@ ASFLAGS=-c -bin -0
 # Uncomment this to build for 286 and better
 # ASFLAGS=-c -bin -2
 
-# The Victor 9000 build (ctmv9k.asm) is 8086-only and independent of ASFLAGS
+# The Victor 9000 build (ctmv9k.asm) is 8086-only and independent of ASFLAGS.
+# V9KDEFS passes compile-time switches, e.g. make v9k V9KDEFS=-DCHAIN41=1
 V9KFLAGS=-c -bin -0
+V9KDEFS=
 
 # Pinned baseline commit for the PC build: ctmouse.exe must stay byte-identical to it
 PC_BASE=1d93f1e
@@ -32,7 +34,7 @@ all: ctmouse.exe
 v9k: ctmv9k.exe
 
 ctmv9k.exe: ctmv9k-en.msg ctmv9k.asm ctmv9k-video.inc bin2exe
-	$(AS) $(V9KFLAGS) -D\?LANG=ctmv9k-en -Foctmv9k.bin ctmv9k.asm
+	$(AS) $(V9KFLAGS) $(V9KDEFS) -D\?LANG=ctmv9k-en -Foctmv9k.bin ctmv9k.asm
 	python3 tools/ressize.py ctmv9k.bin
 	./bin2exe -s 512 ctmv9k.bin ctmv9k.exe
 

@@ -21,7 +21,7 @@ peek cc 4
 type B:\\n
 waitidle 1
 type GETSCRN\\n
-waitidle 1
+waitidle 2
 type PICASSO\\n
 wait 35
 peek f0000 2
@@ -68,30 +68,30 @@ step('left natural', [(-1000, 0)])
 step('left gx=-15', [(-1, 0)], hot=(15, 0), snap=True)
 for k in range(31):
     step('left step', [(1, 0)])
-# top: X = 400, Y = 0, hot 0,15, then Y 1..31 (2 mickeys per pixel)
+# top: X = 400, Y = 0, hot 0,15, then Y 1..31 (1 mickey per pixel with the 8/8 ratio)
 step('top natural', [(400, 0), (0, -1000)])
-step('top gy=-15', [(0, -2)], hot=(0, 15), snap=True)
+step('top gy=-15', [(0, -1)], hot=(0, 15), snap=True)
 for k in range(31):
-    step('top step', [(0, 2)])
+    step('top step', [(0, 1)])
 # bottom: Y = 399, hot 0,0, then Y 398..383
 step('bottom natural', [(0, 1000)])
-step('bottom gy=399', [(0, 2)], hot=(0, 0), snap=True)
+step('bottom gy=399', [(0, 1)], hot=(0, 0), snap=True)
 for k in range(16):
-    step('bottom step', [(0, -2)])
+    step('bottom step', [(0, -1)])
 # corners (natural shape first, then poked hot spot)
 step('TL natural', [(-1000, -1000)])
-step('TL -15,-15', [(-1, -2)], hot=(15, 15), snap=True)
-step('TL hidden gx=-16', [(-1, -2)], hot=(16, 0))
-step('TL hidden gy=-16', [(-1, -2)], hot=(0, 16))
+step('TL -15,-15', [(-1, -1)], hot=(15, 15), snap=True)
+step('TL hidden gx=-16', [(-1, -1)], hot=(16, 0))
+step('TL hidden gy=-16', [(-1, -1)], hot=(0, 16))
 step('TR natural', [(1000, 0)])
-step('TR 799,-15', [(1, -2)], hot=(0, 15), snap=True)
-step('TR hidden gx=800', [(1, -2)], hot=(-1, 0))
+step('TR 799,-15', [(1, -1)], hot=(0, 15), snap=True)
+step('TR hidden gx=800', [(1, -1)], hot=(-1, 0))
 step('BR natural', [(0, 1000)])
-step('BR 799,399', [(1, 2)], hot=(0, 0), snap=True)
-step('BR hidden gy=400', [(1, 2)], hot=(0, -1))
+step('BR 799,399', [(1, 1)], hot=(0, 0), snap=True)
+step('BR hidden gy=400', [(1, 1)], hot=(0, -1))
 step('BL natural', [(-1000, 0)])
-step('BL -15,399', [(-1, 2)], hot=(15, 0), snap=True)
-step('BL 0,384', [(-1, 2)], hot=(0, 15))
+step('BL -15,399', [(-1, 1)], hot=(15, 0), snap=True)
+step('BL 0,384', [(-1, 1)], hot=(0, 15))
 step('centre', [(400, -200)], snap=True)
 out.append('exit')
 open(__file__.replace('gen_t07.py', 't07.cmd'), 'w').write('\n'.join(out) + '\n')
