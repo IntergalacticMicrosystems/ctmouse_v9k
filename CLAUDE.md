@@ -18,10 +18,16 @@ at `/opt/watcom/binl64`; `nasm` and `dosbox` are also installed.
 
 ```sh
 make              # builds bin2exe, then ctmouse.exe (English messages)
+make v9k          # ctmv9k.exe, the Victor 9000 driver (ctmv9k.asm + ctmv9k-en.msg)
+make verify-pc    # PC build must be byte-identical to the pinned PC_BASE commit (gate for every V9K change)
 make alllang      # ctm-<lang>.exe for every ctm-*.msg
 make clean        # removes .bin/.exe intermediates (keeps bin2exe)
 make distclean    # also removes bin2exe and all ctm-*.exe
 ```
+
+`make v9k` runs `tools/ressize.py`, which reads the `RESSZ` marker (resident size, `LIMIT`) from
+`ctmv9k.bin` and fails the build when the resident part exceeds `LIMIT`. The assembler's own
+`if`/`%echo` cannot be used for this: they see pass-1 addresses, which are short of the final size.
 
 Pipeline: `jwasm -c -bin -0 -D?LANG=ctm-en -Foctmouse.bin ctmouse.asm` produces a flat .COM-style
 binary, then `./bin2exe -s 512 ctmouse.bin ctmouse.exe` wraps it in an MZ header. `-0` targets the
@@ -73,10 +79,12 @@ flag, and gate the `PUSHALL`/`POPALL` macros and the `_ARG_xx_` stack offsets.
 Registers' stack-frame offsets (`_ARG_AX_` etc.) differ between the 8086 and 286 builds. Any new code
 reading caller registers must use those equates, never literal offsets.
 
-## Porting notes
+## Victor 9000 port
 
-When adding Victor 9000 support keep the IBM paths buildable; prefer a compile-time switch in the
-style of `USERIL`, or a separate `.asm`/`.msg` target in the Makefile. Hardware touch points to
-replace are the UART I/O in the serial IRQ path, PIC mask/EOI (`PIC1_OCW2`/`PIC1_IMR`), the INT 15h
-PS/2 calls (`PS2serv` macro), BIOS data area reads from `area0.def`, and the video memory/CRTC code
-in the cursor drawing sections.
+The port is a fork: `ctmv9k.asm` + `ctmv9k-en.msg` build `ctmv9k.exe`; `ctmouse.asm`, `ctm-*.msg`
+and `asmlib/` are never edited (`make verify-pc`). The design, hardware map, dispositions of every
+section of `ctmouse.asm`, phases and test plan are in `doc/v9k-port-plan.md`; read it before
+changing `ctmv9k.asm`. Hardware references live outside the repo in
+`/root/sync/Victor9000-Software/mouse/` (annotated MOUSE.DEV disassembly) and the MAME source.
+Keep section banners, label names and ordering aligned with `ctmouse.asm` so the two files diff
+readably.

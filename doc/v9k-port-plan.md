@@ -1,6 +1,6 @@
 # CuteMouse for the Victor 9000: port plan
 
-Status: draft plan, no code written yet. Source of truth for the hardware is
+Status: being implemented phase by phase (section 10 records progress). Source of truth for the hardware is
 `/root/sync/Victor9000-Software/mouse/` (`MOUSE_DRIVER.md`, `MOUSE.asm`). Emulation reference: the
 MAME source tree at `/root/sync/bldmame1/src` (`devices/machine/z80sio.cpp` models the uPD7201,
 `mame/act/victor9k.cpp` the machine). MAME assets: ROMs in `/root/sync/bldmame1/roms/victor9k`, disks in
@@ -473,9 +473,11 @@ INT 2Fh, INT 10h, INT 15h.
 
 MOUSE.DEV is 3104 bytes without a PSP and MOUSE.COM 3360 with one. Phase 2 assembles the hardware
 layer and records **actual** sizes. The renderer estimate is revised from those numbers before
-phase 4 starts. Size reporting: `%echo resident @CatStr(%(TSRend - TSRstart))`. Size gate:
-`if (TSRend - TSRstart) gt LIMIT` / `.err` / `endif`, with `LIMIT` = 0C40h in phase 0 (the
-byte-identical fork is 0C3Eh) and 0C20h from phase 1 on.
+phase 4 starts. Size reporting and gate: `ctmv9k.asm` stores a `RESSZ` marker (`dw TSRend-TSRstart`,
+`dw LIMIT`) in its transient data and `tools/ressize.py` (run by `make v9k`) reads it from the built
+`.bin` and fails above `LIMIT`. (Phase 0 finding: the assembler's `if`/`%echo` see pass-1 addresses,
+3108, while the final size is 3134, so a source-level gate is unreliable.) `LIMIT` = 0C40h in
+phase 0 (the byte-identical fork is 0C3Eh) and 0C20h from phase 1 on.
 
 ## 8. Build changes
 
@@ -591,7 +593,7 @@ commit message.
 
 | Phase | Work | Ends with |
 |---|---|---|
-| 0 | Fork `ctmouse.asm` → `ctmv9k.asm`, `ctm-en.msg` → `ctmv9k-en.msg`, Makefile targets, `%echo` size, assert `LIMIT` = 0C40h | identical driver under a new name; resident 3134 |
+| 0 | Fork `ctmouse.asm` → `ctmv9k.asm`, `ctm-en.msg` → `ctmv9k-en.msg`, Makefile targets, size marker + `tools/ressize.py` gate, `LIMIT` = 0C40h | identical driver under a new name; resident 3134 (done, c9000ee) |
 | 1 | Strip: PS/2, INT 10h/RIL, USE28, PS2DEBUG, USE_286, UMB/XMS, COM search/UART probe, `setCOMport`/`setIRQ`; `USE_MSYS` (0) / `USE_WHEEL` (1); video stubbed (`videoseg` = 0); BIOS reads gone; `LIMIT` → 0C20h | assembles; no `in`/`out`, no `int 1[015]h` left; size recorded |
 | 2 | Hardware layer with `CHAIN41` = 0: equates, ISR with drain loop and error reset, account/notify split, `enable7201`/`disable7201`, ownership-first fn 1Fh, pointer discipline, init + bounded detection, install/reload transactions, fixed `/U`, `/SA /SB`, `'MOUSE'`, fn 24h DX, range clamps, messages, `v9kmt.com`, `v9kmouse.py`, DOSBox harness | DOSBox tests; MAME 1-4, 9-11, 13-15 (no cursor); **actual sizes recorded, renderer budget revised** |
 | 3 | INT 41h sharing: `CHAIN41` = 1, `chain_ok`, conditional IMR restore; trace the 8259 ICW1 in the MAME debugger | MAME 16 with **PORTA.EXE**/PORTB.EXE from the DOS 2.11 disk as the fixture; keep the switch off by default if it fails |
