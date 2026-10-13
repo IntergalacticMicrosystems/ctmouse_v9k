@@ -242,8 +242,10 @@ def run_hello(port, ident, args):
         time.sleep(0.2)
 
 
-def run_script(port, fname, proto, gap):
+def run_script(port, fname, proto, gap, held=''):
     m = Mouse(port, proto)
+    for b in held.upper():                              # state left by an earlier run (not sent)
+        setattr(m, b, 1)
     with open(fname) as f:
         for lineno, line in enumerate(f, 1):
             w = line.split('#', 1)[0].split()
@@ -277,13 +279,17 @@ def run_burst(port, n, proto, rng):
     """N packets in one write, small alternating moves, last button state released."""
     m = Mouse(port, proto)
     out = []
+    sx = sy = 0
     for i in range(n):
         m.L = i & 1
-        out += m.packet(rng.randint(-5, 5) or 1, rng.randint(-5, 5) or 1)
+        dx, dy = rng.randint(-5, 5) or 1, rng.randint(-5, 5) or 1
+        out += m.packet(dx, dy)
+        sx, sy = sx + dx, sy + dy
     m.L = 0
     out += m.packet(1, 1)
     port.write(out)
-    print('burst: %d packets, %d bytes' % (n + 1, len(out)), file=sys.stderr)
+    print('burst: %d packets, %d bytes, net motion %+d,%+d, %d left presses/releases'
+          % (n + 1, len(out), sx + 1, sy + 1, n // 2), file=sys.stderr)
 
 
 def run_garbage(port, n, proto, rng, gap):
@@ -591,6 +597,9 @@ def main():
     ap.add_argument('--gap', type=float, default=0.03, help='seconds between script/garbage items')
     ap.add_argument('--count', type=int, default=0, help='--hello: stop after N ids (0 = forever)')
     ap.add_argument('--seed', type=int, default=None)
+    ap.add_argument('--held', default='', metavar='LRM',
+                    help='--script: buttons already held by an earlier run (each run starts '
+                         'with all released otherwise)')
     ap.add_argument('--step', type=int, default=8, help='--interactive: move step')
     ap.add_argument('-v', '--verbose', action='store_true', help='also print bytes sent')
     args = ap.parse_args()
@@ -608,7 +617,7 @@ def main():
         if args.hello:
             run_hello(port, args.hello, args)
         elif args.script:
-            run_script(port, args.script, args.proto, args.gap)
+            run_script(port, args.script, args.proto, args.gap, args.held)
         elif args.burst is not None:
             run_burst(port, args.burst, args.proto, rng)
         elif args.garbage is not None:

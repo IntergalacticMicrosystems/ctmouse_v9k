@@ -44,7 +44,11 @@ Without `exit` in the command file, MAME keeps running (use it with a pty feeder
 
 `wait s`, `waittext str`, `waitidle [s]`, `type text` (`\n` RETURN, `\\` backslash),
 `screen file|-`, `screenraw file|-`, `mem addr len file`, `peek addr len`, `poke addr bytes`,
-`regs`, `items devtag`, `watchw addr len`, `unwatch`, `snap`, `print text`, `exit`.
+`regs`, `items devtag`, `watchw addr len`, `watchr addr len`, `unwatch`, `snap`, `sh cmd` (os.execute;
+end with `&` to background it, e.g. a pty feeder), `waitfile path [sec]` (wall clock, for syncing
+with a host feeder that touches a flag file), `print text`, `exit`. Tests: `tools/mame/tests/run_test.sh`.
+The natural keyboard sometimes drops a doubled letter (HOOK -> HOK) or keeps Shift for a digit after
+a capital (V9KMT -> V(KMT): type lowercase and avoid doubled letters in commands.
 Addresses and lengths are hex, linear (F0000 = F000:0000). Output lines start with `[v9k]`.
 
 - Text screen: 2048 words at F0000, display start = CRTC R12:R13 (read from the MC6845 save

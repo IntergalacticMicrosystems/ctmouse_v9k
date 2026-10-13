@@ -4,9 +4,11 @@
 ; under Victor DOS and, for the API checks, in DOSBox. Output goes to stdout (redirectable).
 ;
 ; Usage: V9KMT [keys]   keys on the command line are executed first, as if typed (for scripted
-; runs, e.g. "V9KMT s78q > OUT.TXT"); then the keyboard is read until q.
-; Status line: B buttons, X Y, W wheel (fn 3 BH), M mickeys (fn 0Bh, summed), P/R presses and
-; releases (fn 5/6, summed) as wheel/L/R/M.
+; runs, e.g. "V9KMT s78q > OUT.TXT"); then the keyboard is read until q. A leading '-' skips the
+; fn 0 reset, so motion/presses made before V9KMT started show up (e.g. "V9KMT - lq").
+; Status line: B buttons, X Y, W wheel (fn 3 BH, summed), M mickeys (fn 0Bh, summed), P/R presses
+; and releases (fn 5/6, summed) as wheel/L/R/M. fn 3 and fn 5/6 BX=-1 all read and reset the same
+; wheel counter, so the net wheel motion is W + P(wheel) + R(wheel).
 ; Keys: s show(1) h hide(2) 7 X range 100..699 8 Y range 50..349 n bad ranges (-50..900/-50..500)
 ;       9 graphics shape(9) a fn 0Ah BX=1 x exclusion box(10h) 4 fn 4 to 0,0 then 799,399
 ;       t save state(16h) r restore(17h) d disable(1Fh) e enable(20h) w wheel API(11h)
@@ -51,9 +53,23 @@ start:  cld
         mov dx,m_sig
 .sigdone:
         call puts
+        cmp dx,m_nosig                  ; never call a vector without the signature
+        jne .sigok                      ;  (Victor DOS leaves INT 33h = FFFF:FFFF)
+        mov ax,4C01h
+        int 21h
+.sigok:
 
-        ; fn 0
-        xor ax,ax
+        ; fn 0, unless the command tail starts with '-' (keep the driver's counters/position)
+        mov si,81h
+.skp:   lodsb
+        cmp al,' '
+        je .skp
+        cmp al,'-'
+        jne .fn0
+        mov dx,m_nofn0
+        call puts
+        jmp .fn24
+.fn0:   xor ax,ax
         mov bx,1
         int 33h
         mov dx,m_fn0
@@ -65,7 +81,7 @@ start:  cld
         call hex4
         call crlf
 
-        ; fn 24h: BX version, CH type, CL IRQ, DL port, DH 'V'
+.fn24:  ; fn 24h: BX version, CH type, CL IRQ, DL port, DH 'V'
         xor bx,bx
         xor cx,cx
         xor dx,dx
@@ -289,6 +305,8 @@ status: mov ax,3
         pop ax
         mov al,ah
         cbw
+        add [wheels],ax                 ; fn 3 BH is reset on read: sum it
+        mov ax,[wheels]
         call sdec
         mov ax,0Bh
         int 33h
@@ -472,6 +490,7 @@ m_null: db ' null vector, no driver',13,10,'$'
 m_iret: db ' (IRET)$'
 m_nosig: db ' no MOUSE signature',13,10,'$'
 m_sig:  db ' MOUSE signature ok',13,10,'$'
+m_nofn0: db 'fn 0 skipped (-)',13,10,'$'
 m_fn0:  db 'fn 0: AX=$'
 m_fn24: db 'fn 24h: BX=$'
 m_fn4d: db 'fn 4Dh: ES:DI=$'
@@ -510,6 +529,7 @@ fnum:   dw 0
 vseg:   dw 0
 voff:   dw 0
 mickx:  dw 0
+wheels: dw 0
 micky:  dw 0
 presses: times 4 dw 0
 releases: times 4 dw 0

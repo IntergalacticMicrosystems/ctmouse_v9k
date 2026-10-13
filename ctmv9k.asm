@@ -308,6 +308,8 @@ IOctrl		dw SIO_CTRL_A
 		test	ah,RR1_ERRORS		;  of the character at the FIFO top
 		jnz	@@rxerror
 		mov	al,es:[bx-2]		; SIO_DATA_A/B: received byte
+		and	al,7Fh			; 7-bit frame: the 7201 fills bit 7
+						;  with 1 (MOUSE.DEV masks too)
 ;	CODE_	MOV_CX	IOdone,<db ?,0>		; processed bytes counter
 		OPCODE_MOV_CX
 IOdone		db ?,0
@@ -2488,7 +2490,8 @@ pollrx		proc
 		test	byte ptr es:[bx],RR0_RXAVAIL ; RR0 bit 0: Rx char available?
 ;	until_ nz
 	jz @@pollloop
-		mov	al,es:[bx-2]		; SIO_DATA_A/B (CF=0 from TEST)
+		mov	al,es:[bx-2]		; SIO_DATA_A/B
+		and	al,7Fh			; drop the 7201's bit 7 fill (CF=0)
 		ret
 @@polltimeout:	stc
 		ret
@@ -2533,6 +2536,8 @@ getCuteMouse	proc
 		assume	es:nothing
 		cmp	di,5
 		jb	@@gcmret		; null vector or offset < 5
+		cmp	di,0FFFAh
+		ja	@@gcmret		; FFFF:FFFF (Victor DOS at boot)
 		inc	bx			; unknown handler: never call it
 		sub	di,5
 		mov	si,TSRcref:handler33-5	; our own 'MOUSE' signature

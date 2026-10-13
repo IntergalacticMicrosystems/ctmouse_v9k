@@ -1,0 +1,5 @@
+move 10 0
+move 0 5
+press L
+release L
+move -3 -2

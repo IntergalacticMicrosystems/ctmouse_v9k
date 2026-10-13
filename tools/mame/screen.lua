@@ -13,8 +13,11 @@
 --   items <devtag>              a device's save-state items (first element), e.g. items :11a
 --   watchw <addr> <len>         log every CPU write in the range (PC, data) to stdout;
 --                               as the first command it is armed before the boot ROM runs
+--   watchr <addr> <len>         log every CPU read in the range (PC, data), e.g. watchr e0040 2
 --   snap                        PNG of the screen into $V9K_RUN/snap/victor9k/NNNN.png (works with -video none)
 --   unwatch                     remove all watchw taps
+--   sh <shell command>          os.execute (append & to run it in the background)
+--   waitfile <path> [sec]       until <path> exists (wall-clock limit, default 60 s)
 --   print <text> / exit
 -- Addresses are linear (segment*16+offset), e.g. F0000 = F000:0000, 104 = INT 41h vector.
 local cmdfile = os.getenv("V9K_CMDS")
@@ -128,6 +131,18 @@ function cmds.watchw(a)
 		end
 	end)
 end
+function cmds.watchr(a)
+	local addr, len = a:match("(%x+)%s+(%x+)")
+	local lo = hex(addr)
+	local hi = lo + hex(len) - 1
+	taps[#taps + 1] = sp:install_read_tap(lo, hi, "watchr" .. #taps, function(offset, data, mask)
+		local v, o = data, offset
+		if mask == 0xff00 then v, o = data >> 8, offset + 1 elseif mask == 0x00ff then v = data & 0xff end
+		if o >= lo and o <= hi then
+			log(string.format("R %05x=%02x pc=%04x:%04x t=%.3f", o, v, cpu.state["CS"].value, cpu.state["IP"].value, now()))
+		end
+	end)
+end
 function cmds.snap() m.video:snapshot() log("snapshot saved to the snap directory") end
 function cmds.unwatch() for _, t in ipairs(taps) do t:remove() end taps = {} end
 function cmds.items(a)
@@ -140,6 +155,16 @@ function cmds.items(a)
 		local it = emu.item(d.items[k])
 		log(string.format("%s %s = %x%s", a, k, it:read(0), it.count > 1 and (" [" .. it.count .. "]") or ""))
 	end
+end
+function cmds.sh(a) log("sh " .. a) os.execute(a) end
+function cmds.waitfile(a)
+	local path, lim = a:match("(%S+)%s*(%S*)")
+	local t0, limit = os.time(), tonumber(lim) or 60
+	if not wait_until(function()
+		local f = io.open(path, "r")
+		if f then f:close() return true end
+		return os.time() - t0 > limit
+	end) or os.time() - t0 > limit then log("TIMEOUT waiting for file " .. path) end
 end
 function cmds.print(a) log(a) end
 function cmds.exit() log(string.format("exit at t=%.1f", now())) m:exit() coroutine.yield() end
