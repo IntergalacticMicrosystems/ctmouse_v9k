@@ -32,12 +32,17 @@ CTMV9K /?                                 help
   leaves a reverse-video cell the driver does not own (seen in MAME, test 5). Move the cursor or
   hide it (fn 2) before long scrolling output.
 - Resident size is about 2.5 KB including the PSP (MOUSE.DEV: 3.0 KB); `tools/ressize.py` gates it.
-- Reinstalling over a running CTMV9K reloads it in place (same port: no re-detection). Another
+- Reinstalling over a running CTMV9K reloads it in place (same port: no re-detection). Moving the
+  mouse from port B to A resets 7201 channel A, which also touches the chip's shared interrupt
+  logic; unload first (`/U`) if the old port must keep working until the switch. Another
   INT 41h owner installed after the driver makes `/U` refuse, as it should.
-- The other 7201 channel can be used by polled software (viclibc2, Kermit style) while the driver
-  is loaded. Another **interrupt-driven** owner of INT 41h (PORTA.EXE/PORTB.EXE) is not supported
-  by the default build: the driver EOIs every INT 41h itself, so the other channel's interrupts are
-  lost (the `CHAIN41` compile switch is the experimental sharing path). Polled users must perform
+- The other 7201 channel can be used by polled software while the driver is loaded; Victor's
+  PORTA.EXE/PORTB.EXE device drivers are polled and coexist. Another **interrupt-driven** owner of
+  INT 41h (a program that enables 7201 receive interrupts on the other channel) is not supported by
+  the default build: the driver EOIs every INT 41h itself, and because the 8259 is edge-triggered
+  and the 7201 INT line stays high while any source is pending, both the mouse and the other owner
+  stop until a reboot. `make v9k-chain41` builds `ctmv9k-chain41.exe`, which chains to the previous
+  INT 41h owner; it works in MAME and awaits confirmation on real hardware. Polled users must perform
   their pointer/value register pairs with interrupts disabled and must not change WR2A; the 7201
   end-of-interrupt goes through channel A's control port even when the mouse is on B.
 

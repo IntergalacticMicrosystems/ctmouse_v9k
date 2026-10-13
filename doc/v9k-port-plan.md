@@ -412,7 +412,8 @@ garbage (igc `mouse.c` 72-74).
   driver keeps running on its channel. Never reset the channel the old driver is using. (Caveat from
   review: a *channel A* reset also resets the 7201's shared interrupt logic, so moving from B to A
   may drop one pending byte of the old driver; it resyncs on the next sync byte, and the old
-  driver is replaced moments later, so this is accepted and not worked around.) On failure,
+  driver is replaced moments later, so this is accepted and not worked around; the README advises
+  `/U` first when the old port must keep working until the switch. Unproven on silicon.) On failure,
   WR1 = 0 and a reset of the *new* channel only, exit 2: the old driver is still working. On success,
   fn 1Fh, then copy and fn 0, as for the same port.
 

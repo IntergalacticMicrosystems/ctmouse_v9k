@@ -44,7 +44,7 @@ FOOLPROOF	 = 1		; check driver arguments validness
 USE_MSYS	 equ 0		; include Mouse Systems decoder and /M option
 USE_WHEEL	 equ 1		; include MS wheel mouse (4th byte) support
 MODEGUARD	 equ 1		; render target guard on draw/restore
-ifndef CHAIN41			; make v9k V9KDEFS=-DCHAIN41=1 builds the sharing variant
+ifndef CHAIN41			; make v9k-chain41 builds the sharing variant (-DCHAIN41=1)
 CHAIN41		 equ 0		; chain the old INT 41h handler (phase 3, MAME-proven,
 endif				;  off until confirmed on real hardware)
 HWCURSOR	 equ 0		; 6845 hardware text cursor in fn 0Ah (must be 0)
@@ -310,8 +310,6 @@ IOctrl		dw SIO_CTRL_A
 		test	ah,RR1_ERRORS		;  of the character at the FIFO top
 		jnz	@@rxerror
 		mov	al,es:[bx-2]		; SIO_DATA_A/B: received byte
-		and	al,7Fh			; 7-bit frame: the 7201 fills bit 7
-						;  with 1 (MOUSE.DEV masks too)
 ;	CODE_	MOV_CX	IOdone,<db ?,0>		; processed bytes counter
 		OPCODE_MOV_CX
 IOdone		db ?,0
@@ -431,6 +429,9 @@ MSLTproc	proc
 ;	CODE_	MOV_DL	MSLTbuttons,<db ?>	; buttons state for MS3/LT/WM
 		OPCODE_MOV_DL
 MSLTbuttons	db ?
+		and	al,7Fh			; 7-bit frame: the 7201 fills bit 7
+						;  with 1 (MOUSE.DEV masks too); MSM
+						;  (8-bit frames) must not be masked
 		test	al,01000000b	; =40h	; synchro check
 ;	if_ nz					; if first byte
 	jz @@msltz
@@ -2547,9 +2548,12 @@ getCuteMouse	proc
 		assume	es:nothing
 		cmp	di,5
 		jb	@@gcmret		; null vector or offset < 5
-		cmp	di,0FFFAh
-		ja	@@gcmret		; FFFF:FFFF (Victor DOS at boot)
-		inc	bx			; unknown handler: never call it
+		cmp	di,0FFFFh
+		jne	@@gcmvalid
+		mov	ax,es
+		inc	ax			; FFFF:FFFF: Victor DOS leaves unused
+		jz	@@gcmret		;  vectors so at boot (no driver)
+@@gcmvalid:	inc	bx			; unknown handler: never call it
 		sub	di,5
 		mov	si,TSRcref:handler33-5	; our own 'MOUSE' signature
 		mov	cx,5
