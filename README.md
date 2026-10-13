@@ -30,9 +30,12 @@ CTMV9K /?                                 help
 - Resident size is about 2.5 KB including the PSP (MOUSE.DEV: 3.0 KB); `tools/ressize.py` gates it.
 - Reinstalling over a running CTMV9K reloads it in place (same port: no re-detection). Another
   INT 41h owner installed after the driver makes `/U` refuse, as it should.
-- Serial drivers on the other 7201 channel must perform their pointer/value register pairs with
-  interrupts disabled and must not change WR2A; the 7201 end-of-interrupt goes through channel A's
-  control port even when the mouse is on B.
+- The other 7201 channel can be used by polled software (viclibc2, Kermit style) while the driver
+  is loaded. Another **interrupt-driven** owner of INT 41h (PORTA.EXE/PORTB.EXE) is not supported
+  by the default build: the driver EOIs every INT 41h itself, so the other channel's interrupts are
+  lost (the `CHAIN41` compile switch is the experimental sharing path). Polled users must perform
+  their pointer/value register pairs with interrupts disabled and must not change WR2A; the 7201
+  end-of-interrupt goes through channel A's control port even when the mouse is on B.
 
 Test tooling: `tools/dosbox/run.sh` (headless DOSBox smoke test), `tools/mame/` (headless MAME
 `victor9k` harness: boot, type, dump screen/memory, drive B: images), `tools/v9kmouse.py` (serial

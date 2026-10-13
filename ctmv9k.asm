@@ -248,7 +248,7 @@ TSRdata		label byte
 ; (RESSZ marker).
 
 DefArea = $
-		POINT	<8,16>			; mickey8
+		POINT	<8,8>			; mickey8 (MOUSE.DEV ratio, plan 6)
 		POINT	<1*256,1*256>		; senscoeff
 		POINT	<49,49>			; sensval
 ;;*		dw	64			; doublespeed
@@ -305,12 +305,12 @@ IOctrl		dw SIO_CTRL_A
 		jz	@@drained
 		mov	byte ptr es:[bx],1	; WR0: pointer 1
 		mov	ah,es:[bx]		; RR1: bits 4-6 parity/overrun/framing
+		test	ah,RR1_ERRORS		;  of the character at the FIFO top
+		jnz	@@rxerror
 		mov	al,es:[bx-2]		; SIO_DATA_A/B: received byte
 ;	CODE_	MOV_CX	IOdone,<db ?,0>		; processed bytes counter
 		OPCODE_MOV_CX
 IOdone		db ?,0
-		test	ah,RR1_ERRORS
-		jnz	@@rxerror
 if USE_MSYS
 		call_	mouseproc,MSMproc
 else
@@ -318,11 +318,13 @@ else
 endif
 		j	@@drain
 
-@@rxerror:	mov	byte ptr es:[bx],WR0_ERRRES ; WR0: error reset, byte dropped
-		mov	[IOdone],ch		; CH=0: resync on next sync byte
+@@rxerror:	mov	byte ptr es:[bx],WR0_ERRRES ; WR0: error reset BEFORE popping
+		mov	al,es:[bx-2]		;  the byte, else the reset would clear
+		mov	[IOdone],0		;  the next byte's RR1 status; resync
 		j	@@drain
 
-@@drained:
+@@drained:	mov	byte ptr es:[bx],WR0_ERRRES ; WR0: clear a special-receive
+						;  condition left with an empty FIFO
 if CHAIN41
 		test	byte ptr es:[SIO_CTRL_A],RR0_INTPEND ; RR0A bit 1: any
 		jz	@@eoi			;  interrupt still pending (ours is
@@ -365,7 +367,9 @@ enable7201	proc
 		jz	@@en_empty
 		mov	al,es:[bx-2]		; SIO_DATA_A/B: discard the byte
 		loop	@@en_drain
-@@en_empty:	mov	byte ptr es:[bx],1	; WR0: pointer 1
+@@en_empty:	mov	byte ptr es:[bx],WR0_ERRRES ; WR0: clear errors latched while
+						;  interrupts were off (stale INT)
+		mov	byte ptr es:[bx],1	; WR0: pointer 1
 		mov	byte ptr es:[bx],WR1_RXALL ; WR1: Rx interrupt on every char
 		mov	byte ptr es:[PIC_OCW],PIC_EOI_IR1 ; 8259 OCW2: clear a stale IR1
 		and	byte ptr es:[PIC_IMR],not PIC_IR1 ; 8259 IMR: unmask IR1

@@ -188,16 +188,19 @@ mov  bx, ctrl                ; immediate patched at install (like IO_address tod
 test byte es:[bx], 1         ; RR0 of our channel: Rx char available?
 jz   @@drained
 mov  byte es:[bx], 1         ; select RR1 (IF = 0, so the pointer pair is atomic)
-mov  ah, es:[bx]             ; RR1 errors
-mov  al, es:[bx-2]           ; data byte
+mov  ah, es:[bx]             ; RR1 errors of the character at the FIFO top
 test ah, 70h                 ; parity/overrun/framing
-jz   @@good
-mov  byte es:[bx], 30h       ; error reset; discard the byte
-mov  [IOdone], 0             ; resync on the next sync byte
+jnz  @@bad
+mov  al, es:[bx-2]           ; data byte
+call MSLTproc                ; decode; on a completed packet -> mouseaccount
 jmp  @@drain
-@@good: call MSLTproc        ; decode; on a completed packet -> mouseaccount
+@@bad: mov byte es:[bx], 30h ; error reset BEFORE popping: the reset clears RR1 for the
+mov  al, es:[bx-2]           ;  top character, so pop afterwards or the next bad byte
+mov  [IOdone], 0             ;  reads as good (review finding); resync on the next sync byte
 jmp  @@drain
 @@drained:
+mov  byte es:[bx], 30h       ; clear a special-receive condition left with an empty FIFO
+                             ;  (an error latched while WR1 = 0 could hold INT asserted)
 if CHAIN41                   ; default 0 until phase 3 (section 10)
   test byte es:[SIO_CTRL_A], 2 ; RR0A bit 1: any interrupt still pending, any channel
   jz   @@eoi                 ; ours is drained, so a pending one belongs to the other channel
@@ -343,8 +346,9 @@ and write them back on hide.
   1Eh-4Dh). Keep the origin at **1Eh**: the buffer becomes 1Eh-5Dh, `SaveArea`/`mickey8` moves from
   4Eh to **5Eh**, and the rest of the uninitialized state shifts up 16 bytes (16 resident bytes).
   Do **not** move the origin down to 0Eh: PSP 0Ah-15h hold the INT 22h/23h/24h vectors DOS restores
-  at exit (`psp.def`). 18h-2Bh (JFT) and 2Ch (env) are reused, as today. Assert in the source:
-  `.errnz (spritebuf - TSRstart) - 1Eh` and `.errnz (SaveArea - TSRstart) - 5Eh`. Next to it go
+  at exit (`psp.def`). 18h-2Bh (JFT) and 2Ch (env) are reused, as today. (As built: the 9 bytes of
+  renderer/detect state `V9K_UDATA` follow the buffer, so `SaveArea` is at 68h, not 5Eh; still
+  nothing below 1Eh. Layout is checked from the binary by `tools/ressize.py`, not by `.errnz`.) Next to it go
   `gc_off` (word), `gc_r0`, `gc_rows`, `gc_lr` (bit 0 left valid, bit 1 right valid) and the
   render target id (4.1). Restore writes back exactly the saved words.
 - Cost on a 5 MHz 8088: about 16 rows × ~120 clocks ≈ 0.4 ms per draw plus the same for restore,
@@ -405,7 +409,10 @@ garbage (igc `mouse.c` 72-74).
   Prepare all patches first, then call fn 1Fh **immediately before** the copy. If fn 1Fh refuses
   (foreign owner), exit 2 with the old driver untouched and still running. Otherwise copy and fn 0.
 - **Other port**: init and detect on the new channel (polled, WR1 = 0, nothing hooked) while the old
-  driver keeps running on its channel. Never reset the channel the old driver is using. On failure,
+  driver keeps running on its channel. Never reset the channel the old driver is using. (Caveat from
+  review: a *channel A* reset also resets the 7201's shared interrupt logic, so moving from B to A
+  may drop one pending byte of the old driver; it resyncs on the next sync byte, and the old
+  driver is replaced moments later, so this is accepted and not worked around.) On failure,
   WR1 = 0 and a reset of the *new* channel only, exit 2: the old driver is still working. On success,
   fn 1Fh, then copy and fn 0, as for the same port.
 
@@ -444,7 +451,7 @@ INT 2Fh, INT 10h, INT 15h.
   CH = 2, CL = 1 (IR1) and also returns **DL = port (0 = A, 1 = B), DH = 'V' (56h)**. igc presets
   DX = 0, calls fn 24h and uses DL when DH = 'V', falling back to the 0A9Ch read for MOUSE.DEV/COM.
   **Decided** (user): this interface, and the igc patch is a release dependency of the port.
-- Default mickey ratio 8/8 (MOUSE.DEV) instead of 8/16. Acceleration is CuteMouse's sensitivity
+- Default mickey ratio 8/8 (MOUSE.DEV) instead of 8/16 (applied; the first build kept 8/16). Acceleration is CuteMouse's sensitivity
   curve and double-speed threshold (**decided**), not MOUSE.DEV's |d|>2 doubling (which has bug 2).
   `/R` tunes it.
 - Program name **`CTMV9K.EXE`** (decided). INT FBh (MOUSE.DEV's private API) is not implemented:
