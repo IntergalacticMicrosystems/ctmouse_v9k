@@ -55,6 +55,11 @@ CFG
 
 cd "$RUN" || exit 1
 # shellcheck disable=SC2086
+# Headless unless -w: with WSLg a DISPLAY exists and even -video none can pop up a window.
+if [ "$VIDEO" != "-window" ]; then
+	unset DISPLAY WAYLAND_DISPLAY
+	export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+fi
 timeout -s KILL "$KILL" "$MAME" victor9k -rompath "$ROMS" -cfg_directory "$RUN/cfg" \
 	-nvram_directory "$RUN/nvram" -snapshot_directory "$RUN/snap" -noplugins -skip_gameinfo \
 	$VIDEO -sound none $THROTTLE -flop1 "$RUN/flop1.img" $args "$@" &

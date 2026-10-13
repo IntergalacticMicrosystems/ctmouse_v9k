@@ -11,7 +11,7 @@ original is never written), `V9K_RUN=${TMPDIR:-/tmp}/v9kmame` (cfg, nvram, snaps
 
 ## Files
 
-- `run.sh`: starts MAME (`-video none -sound none -noplugins`), writes a fresh cfg with the pty
+- `run.sh`: starts MAME headless (`-video none -sound none -noplugins`, DISPLAY unset, SDL dummy driver; `-w` for a window), writes a fresh cfg with the pty
   slot settings, prints the pty paths.
 - `screen.lua`: autoboot script; runs a command file (`-c`, see its header for all commands).
 - `mkdisk.sh`: builds a Victor SS floppy image from files or a directory.
