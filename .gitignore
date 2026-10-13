@@ -3,3 +3,4 @@ ctmv9k.bin
 *.bin
 ctmouse.ref
 __pycache__/
+bin2exe
