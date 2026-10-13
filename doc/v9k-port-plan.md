@@ -612,12 +612,23 @@ commit message.
 | Phase | Work | Ends with |
 |---|---|---|
 | 0 | Fork `ctmouse.asm` → `ctmv9k.asm`, `ctm-en.msg` → `ctmv9k-en.msg`, Makefile targets, size marker + `tools/ressize.py` gate, `LIMIT` = 0C40h | identical driver under a new name; resident 3134 (done, c9000ee) |
-| 1 | Strip: PS/2, INT 10h/RIL, USE28, PS2DEBUG, USE_286, UMB/XMS, COM search/UART probe, `setCOMport`/`setIRQ`; `USE_MSYS` (0) / `USE_WHEEL` (1); video stubbed (`videoseg` = 0); BIOS reads gone; `LIMIT` → 0C20h | assembles; no `in`/`out`, no `int 1[015]h` left; size recorded |
-| 2 | Hardware layer with `CHAIN41` = 0: equates, ISR with drain loop and error reset, account/notify split, `enable7201`/`disable7201`, ownership-first fn 1Fh, pointer discipline, init + bounded detection, install/reload transactions, fixed `/U`, `/SA /SB`, `'MOUSE'`, fn 24h DX, range clamps, messages, `v9kmt.com`, `v9kmouse.py`, DOSBox harness | DOSBox tests; MAME 1-4, 9-11, 13-15 (no cursor); **actual sizes recorded, renderer budget revised** |
+| 1 (done, e8c926b, resident 1838) | Strip: PS/2, INT 10h/RIL, USE28, PS2DEBUG, USE_286, UMB/XMS, COM search/UART probe, `setCOMport`/`setIRQ`; `USE_MSYS` (0) / `USE_WHEEL` (1); video stubbed (`videoseg` = 0); BIOS reads gone; `LIMIT` → 0C20h | assembles; no `in`/`out`, no `int 1[015]h` left; size recorded |
+| 2 (done, 9e8fc38 + fixes 11a37b4/4c32f1b, resident 2128 before video) | Hardware layer with `CHAIN41` = 0: equates, ISR with drain loop and error reset, account/notify split, `enable7201`/`disable7201`, ownership-first fn 1Fh, pointer discipline, init + bounded detection, install/reload transactions, fixed `/U`, `/SA /SB`, `'MOUSE'`, fn 24h DX, range clamps, messages, `v9kmt.com`, `v9kmouse.py`, DOSBox harness | DOSBox tests; MAME 1-4, 9-11, 13-15 (no cursor); **actual sizes recorded, renderer budget revised** |
 | 3 | INT 41h sharing: `CHAIN41` = 1, `chain_ok`, conditional IMR restore; trace the 8259 ICW1 in the MAME debugger | MAME 16 with **PORTA.EXE**/PORTB.EXE from the DOS 2.11 disk as the fixture; keep the switch off by default if it fails |
-| 4 | Text video: mode detect, render-target id, cell address with wrap, X/10, software cursor, fn 0Ah fallback, pixel `checkifseen`, fn 26h constants | MAME 5, 6, 8 (patched igc), 12 (text part) |
-| 5 | Graphics: layout check, strip renderer and restore, fn 9 mirroring, pre-mirrored defaults, `MODEGUARD` on restore | MAME 7, 12, 17 (PICASSO, oracle); size ≤ 0C20h |
+| 4 (done with 5, 27d8c05) | Text video: mode detect, render-target id, cell address with wrap, X/10, software cursor, fn 0Ah fallback, pixel `checkifseen`, fn 26h constants | MAME 5, 6, 8 (patched igc), 12 (text part) |
+| 5 (done, ed47f50 + 27d8c05, resident 2588 total) | Graphics: layout check, strip renderer and restore, fn 9 mirroring, pre-mirrored defaults, `MODEGUARD` on restore | MAME 7, 12, 17 (PICASSO, oracle); size ≤ 0C20h |
 | 6 | Release: igc change merged (section 6), README/CLAUDE.md, `HWCURSOR`/RTS decisions applied | real-hardware run (9.3) |
+
+### 10.1 Findings while implementing (2026-10-12)
+
+- The 7201 delivers bit 7 = 1 in 7-bit mode (MAME `z80sio.cpp` ~2475; MOUSE.asm 876 masks with 3Fh).
+  The ISR and the detection poll mask with 7Fh. Without it every motion byte read as a large
+  negative value and `M3`/`MZ` were never recognised.
+- Victor DOS leaves INT 33h at FFFF:FFFF at boot; it is classified as "no driver".
+- fn 0Bh returns mickeys after CuteMouse's acceleration curve (|d| ≤ 4 unchanged, 5-11 → d·|d|/4,
+  ≥ 12 → ×3), not the raw sum; the MAME tests model that.
+- MAME's natural keyboard sometimes drops doubled letters or leaves Shift on; test scripts type
+  lowercase.
 
 ## 11. Risks
 
