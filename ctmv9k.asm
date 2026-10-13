@@ -43,9 +43,9 @@ OVERFLOW_PROTECT = 0		; prevent variables overflow
 FOOLPROOF	 = 1		; check driver arguments validness
 USE_MSYS	 equ 0		; include Mouse Systems decoder and /M option
 USE_WHEEL	 equ 1		; include MS wheel mouse (4th byte) support
-MODEGUARD	 equ 1		; render target guard on draw/restore (not used yet)
+MODEGUARD	 equ 1		; render target guard on draw/restore
 CHAIN41		 equ 0		; chain the old INT 41h handler (phase 3)
-HWCURSOR	 equ 0		; 6845 hardware text cursor in fn 0Ah (not used yet)
+HWCURSOR	 equ 0		; 6845 hardware text cursor in fn 0Ah (must be 0)
 
 ;------------------------------------------------------------------------
 
@@ -134,6 +134,9 @@ POINT		struc
   Y		dw ?
 POINT ends
 
+V9K_PART	= 1			; video layer: equates and macros
+include ctmv9k-video.inc
+
 
 ;========================== SEGMENTS DEFINITION ==========================
 
@@ -164,6 +167,7 @@ TSRavail	label byte			; initialized data may come from here
 
 		org	PSP_TSR-3*16	; reuse part of PSP
 spritebuf	db	4*16 dup (?)	; graphics cursor save buffer (1Eh-5Dh)
+		V9K_UDATA		; v9k_rid, gc_x/y, gc_rows, gc_lr, granx10
 
 ;----- application state -----
 
@@ -211,8 +215,6 @@ rangemin	POINT	<>		; horizontal/vertical range min
 		even
 szClearArea2 = $ - ClearArea		; cleared by setupvideo
 
-cursortype	db	?		; 0 - software, else hardware
-callmask	db	?		; user interrupt routine call mask
 mickeys		POINT	<>		; mouse move since last access
 BUTTLASTSTATE	struc
   counter	dw	?
@@ -223,6 +225,7 @@ buttpress	BUTTLASTSTATE <>,<>,<>
 buttrelease	BUTTLASTSTATE <>,<>,<>
 wheel		BUTTLASTSTATE <>		; wheel counter since last access
 wheelUIR	db	?		; wheel counter for UIR
+callmask	db	?		; user interrupt routine call mask
 		even
 szClearArea3 = $ - ClearArea		; cleared by softreset_21
 szSaveArea = $ - SaveArea
@@ -249,40 +252,9 @@ DefArea = $
 		POINT	<1*256,1*256>		; senscoeff
 		POINT	<49,49>			; sensval
 ;;*		dw	64			; doublespeed
-		dw	77FFh,7700h		; startscan, endscan
+		dw	0FFFFh,8000h		; startscan, endscan (plan 4.4)
 		POINT	<0,0>			; hotspot
-		dw	0011111111111111b	; screenmask
-		dw	0001111111111111b
-		dw	0000111111111111b
-		dw	0000011111111111b
-		dw	0000001111111111b
-		dw	0000000111111111b
-		dw	0000000011111111b
-		dw	0000000001111111b
-		dw	0000000000111111b
-		dw	0000000000011111b
-		dw	0000000111111111b
-		dw	0000000011111111b
-		dw	0011000011111111b
-		dw	1111100001111111b
-		dw	1111100001111111b
-		dw	1111110011111111b
-		dw	0000000000000000b	; cursormask
-		dw	0100000000000000b
-		dw	0110000000000000b
-		dw	0111000000000000b
-		dw	0111100000000000b
-		dw	0111110000000000b
-		dw	0111111000000000b
-		dw	0111111100000000b
-		dw	0111111110000000b
-		dw	0111110000000000b
-		dw	0110110000000000b
-		dw	0100011000000000b
-		dw	0000011000000000b
-		dw	0000001100000000b
-		dw	0000001100000000b
-		dw	0000000000000000b
+		V9K_DEFMASKS			; screenmask, cursormask (mirrored)
 		db	1			; nocursorcnt
 ;;*		db	0			; nolightpen?
 	db 0	; JWASM would use 0fch, "CLD" as pad byte??
@@ -294,8 +266,7 @@ DefArea = $
 		even
 granumask	POINT	<-1,-1>
 
-textbuf		label	word
-buffer@		dd	?		; pointer to screen sprite copy
+textbuf		dw	?,?		; text cursor: written cell, saved cell
 cursor@		dw	-1,0		; cursor sprite offset in videoseg;
 					; -1=cursor not drawn
 videoseg	equ <cursor@[2]>	; 0=not supported video mode
@@ -308,8 +279,6 @@ if CHAIN41
 chain_ok	db	0		; 1=old INT 41h handler may be chained
 endif
 maxcoord	POINT	<799,399>	; screen limits for ranges (fn 7/8/17/26)
-scanline	dw	?		; screen line width in bytes
-screenheight	dw	?		; screen height in pixels
 
 
 ;============================= IRQ HANDLERS =============================
@@ -831,6 +800,7 @@ endif
 @@cpg:
 		mov	word ptr pos[bx],ax	; new position
 		and	al,byte ptr granumask[bx]
+		V9K_GRANX			; text mode: X multiple of 10
 		mov	word ptr granpos[bx],ax	; new granulated position
 @@uposdone:	mov	ax,1
 @@uposret:	ret
@@ -875,177 +845,8 @@ updatebutton	endp
 ;========================= END OF IRQ HANDLERS ==========================
 
 
-;========================================================================
-;			Draw mouse cursor
-;========================================================================
-
-drawcursor	proc
-		mov	cx,[videoseg]
-		jcxz	@@drawret		; exit if nonstandard mode
-
-		xor	cx,cx
-		cmp	[nocursorcnt],cl	; OPTIMIZE: CL instead 0
-		jnz	restorescreen		; jump if cursor disabled
-
-		mov	ax,[granumask.Y]
-		xchg	cl,[newcursor]		; remove redraw request
-						; CX=force cursor request
-		inc	ax
-		mov	bx,[granpos.Y]		; cursor position Y
-		mov	ax,[granpos.X]		; cursor position X
-		jz	graphcursor		; jump if graphics mode
-
-;===== text mode cursor
-
-		mov	si,8			; OPTIMIZE: instead -[granumask.Y]
-		call	checkifseen
-		jc	restorescreen		; jump if not in seen area
-
-		call	gettxtoffset
-		cmp	di,[cursor@]
-;	if_ eq					; exit if position not changed
-	jnz @@drnz
-		jcxz	@@drawret		;  and cursor not forced
-;	end_
-@@drnz:
-		push	di
-		call	restorescreen
-		;MOVSEG	es,[videoseg],,nothing
-		pop	di
-
-; PHASE4: hardware text cursor (CRTC R14/R15) only under HWCURSOR
-
-;----- draw software text mode cursor
-
-		mov	[cursor@],di
-		mov	ax,es:[di]		; save char under cursor
-		mov	textbuf[2],ax
-		and	ax,[startscan]
-		xor	ax,[endscan]
-		stosw				; draw to new position
-		mov	textbuf[0],ax
-@@drawret:	ret
-drawcursor	endp
-
-;========================================================================
-;			Restore old screen contents
-;========================================================================
-
-restorescreen	proc
-		les	di,dword ptr [cursor@]
-		assume	es:nothing
-		inc	di
-;	if_ nz					; if cursor drawn
-	jz @@rsz
-		sub	[cursor@],di		; OPTIMIZE: instead MOV -1
-		mov	ax,[granumask.Y]
-		dec	di
-		inc	ax
-
-;	 if_ zero
-	jnz @@rsnz
-
-;----- graphics mode
-
-; PHASE5: restore the saved bitmap background (v9k_grestore)
-		ret
-;	 end_
-@@rsnz:
-
-;----- text mode
-
-		mov	si,TSRdref:textbuf
-		lodsw
-		cmp	ax,es:[di]
-;	 if_ eq					; if screen not changed
-	jnz @@rsnz2
-		movsw				; restore old text char/attrib
-;	 end_
-@@rsnz2:
-;	end_
-@@rsz:
-@drawret::	ret
-restorescreen	endp
-
-;========================================================================
-;		Draw graphics mode mouse cursor
-;========================================================================
-
-graphcursor	proc
-; PHASE5: V9K strip renderer into the 800x400 bitmap (plan 4.4);
-;	unreachable while videoseg=0
-		j	restorescreen
-graphcursor	endp
-
-;========================================================================
-;		Return text mode video memory offset
-;========================================================================
-;
-; In:	AX/BX			(cursor position X/Y)
-; Out:	DI			(video memory offset)
-; Use:	none
-; Modf:	none
-; Call:	none
-;
-gettxtoffset	proc
-; PHASE4: CRTC start + row*80 + column, wrapped (plan 4.2)
-		xor	di,di
-		ret
-gettxtoffset	endp
-
-;========================================================================
-;		Check if cursor seen and not in update region
-;========================================================================
-;
-; In:	AX/BX			(cursor position X/Y)
-;	SI			(cursor height)
-; Out:	Carry flag		(cursor not seen or in update region)
-;	BX			(cursor X aligned at byte in video memory)
-;	SI			(cursor Y+height)
-; Use:	scanline, screenheight, upleft, lowright
-; Modf:	DX
-; Call:	none
-;
-checkifseen	proc	C uses cx
-
-;----- check if cursor shape seen on the screen
-
-		add	si,bx
-		jle	@@retunseen		; fail if Y+height<=0
-		cmp	bx,[screenheight]
-		jge	@@retunseen		; fail if Y>maxY
-
-;	CODE_	MOV_CL	bitmapshift,<db ?>	; mode 13h=1, 0Dh=4, other=3
-		OPCODE_MOV_CL
-bitmapshift	db ?
-;	CODE_	MOV_DX	cursorwidth,<dw ?>	; cursor width in bytes
-		OPCODE_MOV_DX
-cursorwidth	dw ?
-		sar	ax,cl
-		add	dx,ax
-		jle	@@retunseen		; fail if X+width<=0
-		cmp	ax,[scanline]
-		jge	@@retunseen		; fail if X>maxX
-
-;----- check if cursor shape not intersects with update region
-
-		shl	ax,cl
-		cmp	bx,[lowright.Y]
-		jg	@@retseen		; ok if Y below
-		cmp	si,[upleft.Y]
-		jle	@@retseen		; ok if Y+height above
-
-		cmp	ax,[lowright.X]
-		jg	@@retseen		; ok if X from the right
-		shl	dx,cl
-		cmp	dx,[upleft.X]
-		jle	@@retseen		; ok if X+width from the left
-
-@@retunseen:	stc
-		ret
-@@retseen:	clc
-		ret
-checkifseen	endp
+V9K_PART	= 2			; video layer: drawcursor .. v9k_detect_mode
+include ctmv9k-video.inc
 
 
 ;======================= INT 33 HANDLER SERVICES ========================
@@ -1066,8 +867,8 @@ setupvideo	endp
 ; Out:	[AX] = 21h/FFFFh	(not installed/installed)
 ;	[BX] = 2/3/FFFFh	(number of buttons)
 ; Use:	none
-; Modf:	RedefArea, screenheight, granumask, videoseg, cursorwidth,
-;	scanline, bitmapshift, rangemax, ClearArea
+; Modf:	RedefArea, granumask, videoseg, granx10, v9k_rid, rangemax,
+;	ClearArea
 ; Call:	hidecursor, @savecutpos
 ;
 softreset_21	proc
@@ -1083,23 +884,9 @@ buttonscnt	equ	byte ptr [$-2]		; buttons count (2/3)
 ;----- set parameters for current video mode
 
 @setvideo::	push	si
-; PHASE4: v9k_detect_mode (text/graphics layout from the CRTC); until then
-;	no cursor is drawn (videoseg=0) and the screen is 800x400
-		mov	ax,800 shr 3		; screen line width in bytes
-		mov	cx,0303h		; cursor width 3 bytes, bitmapshift 3
-		mov	dx,00FFh		; no video segment, X granularity 1
-		mov	bh,0FFh			; Y granularity 1
+		call	v9k_detect_mode		; videoseg, granumask.Y, granx10, v9k_rid
+		mov	ax,800			; screen width
 		mov	di,400			; screen height
-
-@@setcommon:	mov	[screenheight],di
-		mov	[scanline],ax		; screen line width in bytes
-		mov	[bitmapshift],cl	; log2(screen/memory ratio)
-						;  (mode 13h=1, 0-1/0Dh=4, other=3)
-		mov	byte ptr [cursorwidth],ch ; cursor width in bytes
-		mov	byte ptr [granumask.X],dl
-		mov	byte ptr [granumask.Y],bh
-		mov	byte ptr videoseg[1],dh
-		shl	ax,cl
 		pop	si
 
 ;----- set ranges and center cursor (AX=screenwidth, DI=screenheight)
@@ -1443,8 +1230,8 @@ videopage_1E	endp
 ;
 showcursor_01	proc
 		neg	ax			; AL=AH=-1
-		mov	byte ptr lowright.Y[1],al ; place update region
-		j	cursorstatus		;  outside seen screen area
+		mov	byte ptr lowright.Y[1],80h ; place update region far
+		j	cursorstatus		;  above the screen (gy >= -15)
 showcursor_01	endp
 
 ;========================================================================
@@ -1560,32 +1347,11 @@ refreshcursor	endp
 ;	ES:DX			(pointer to bitmaps)
 ; Out:	none
 ; Use:	none
-; Modf:	AX, CX, BX, SI, DI, ES, hotspot, screenmask, cursormask
-; Call:	@showret, redrawcursor
+; Modf:	AX, CX, DX, BX, SI, DI, ES, hotspot, screenmask, cursormask
+; Call:	redrawcursor
 ;
 graphcursor_09	proc
 		assume	es:nothing
-
-;----- compare user shape with internal area
-
-		mov	si,TSRdref:hotspot
-		lodsw
-		cmp	ax,bx
-;	if_ eq
-	jnz @@gc9nz
-		lodsw
-		xor	ax,cx
-;	andif_ eq
-	jnz @@gc9nz
-		mov	di,dx
-		;mov	ah,0
-		mov	al,16+16
-		xchg	ax,cx
-		repe	cmpsw
-		je	@showret		; exit if cursor not changed
-		xchg	cx,ax			; OPTIMIZE: instead MOV CX,AX
-;	end_
-@@gc9nz:
 
 ;----- copy user shape to internal area
 
@@ -1601,8 +1367,8 @@ graphcursor_09	proc
 		stosw
 ;		memcopy	2*(16+16),,,,,,dx
 		mov si,dx
-		mov cx, 16+16
-		rep	movsw
+		mov	cx,16+16
+		V9K_MIRRORCOPY			; bit 0 = leftmost pixel
 		pop	ds
 		;j	redrawcursor
 graphcursor_09	endp
@@ -1618,38 +1384,25 @@ redrawcursor	endp
 ; 0A - Define text cursor
 ;========================================================================
 ;
-; In:	BX			(0 - SW, else HW text cursor)
+; In:	BX			(0 - SW, else HW text cursor: ignored)
 ;	CX			(screen mask/start scanline)
 ;	DX			(cursor mask/end scanline)
 ; Out:	none
 ; Use:	none
-; Modf:	AX, CX, BX, cursortype, startscan, endscan
+; Modf:	startscan, endscan
 ; Call:	@showret, redrawcursor
 ;
 textcursor_0A	proc
-;		xchg	cx,bx
-		xchg	bx,cx	; TASM and JWASM use opposite encodings
-;	if_ ncxz				; if hardware cursor
-	jcxz @@tcacxz
-; PHASE4: CRTC R10/R11 only under HWCURSOR, else software cursor
-		mov	cl,1
-;	end_
-@@tcacxz:
-		cmp	cl,[cursortype]
+		test	bx,bx			; hardware cursor (HWCURSOR=0):
+		jnz	@showret		;  keep the software cursor masks
+		cmp	cx,[startscan]
 ;	if_ eq
-	jnz @@tcanz
-		cmp	bx,[startscan]
-;	andif_ eq
 	jnz @@tcanz
 		cmp	dx,[endscan]
 		je	@showret		; exit if cursor not changed
 ;	end_
 @@tcanz:
-
-;-----
-
-		mov	[cursortype],cl
-		mov	[startscan],bx
+		mov	[startscan],cx
 		mov	[endscan],dx
 		j	redrawcursor
 textcursor_0A	endp

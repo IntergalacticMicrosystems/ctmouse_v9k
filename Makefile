@@ -31,7 +31,7 @@ all: ctmouse.exe
 
 v9k: ctmv9k.exe
 
-ctmv9k.exe: ctmv9k-en.msg ctmv9k.asm bin2exe
+ctmv9k.exe: ctmv9k-en.msg ctmv9k.asm ctmv9k-video.inc bin2exe
 	$(AS) $(V9KFLAGS) -D\?LANG=ctmv9k-en -Foctmv9k.bin ctmv9k.asm
 	python3 tools/ressize.py ctmv9k.bin
 	./bin2exe -s 512 ctmv9k.bin ctmv9k.exe
