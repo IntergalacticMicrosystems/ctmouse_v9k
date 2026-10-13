@@ -35,6 +35,7 @@ peek e0042 1
 peek e0043 1
 items :7l
 waitidle 2
+wait 1
 type B:CTM@V@ /U\n
 waitidle 2
 screen -

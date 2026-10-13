@@ -629,6 +629,15 @@ commit message.
   ≥ 12 → ×3), not the raw sum; the MAME tests model that.
 - MAME's natural keyboard sometimes drops doubled letters or leaves Shift on; test scripts type
   lowercase.
+- Tests 5, 6, 7, 17 pass in MAME (`tools/mame/tests/video`: 117/117 bitmap dumps equal the oracle
+  under PICASSO at all 16 shifts on both edges and all corners; the text cursor follows the CRTC
+  start across 11 scrolls incl. the 2048-word wrap; fn 0Ah BX=1 never writes R10/R11/R14/R15).
+  Test 12 passes but PICASSO hides the cursor before switching, so the MODEGUARD discard path is
+  only covered by the DOSBox oracle test. The Victor BIOS scroll copies the bottom row's column-0
+  attribute into the new line, so a cursor parked there during a scroll leaves a reverse cell
+  (documented in the README; not a driver bug). Font bank R12 bit 4 = 1 is untested in MAME.
+- PORTA.EXE/PORTB.EXE are polled CONFIG.SYS drivers (WR1 = 0, never touch INT 41h or the IMR), so
+  they coexist with the default build; `bits(7)` writes WR3 = A1h, which MAME decodes as 6 bits.
 
 ## 11. Risks
 

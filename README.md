@@ -27,6 +27,10 @@ CTMV9K /?                                 help
 - Compatible with MOUSE.DEV/MOUSE.COM clients: the 5-byte `MOUSE` signature precedes the INT 33h
   entry, and fn 24h additionally returns DL = port (0 = A, 1 = B), DH = 'V' for programs that need
   the port (igc uses this). INT 33h calls with AH != 0 are ignored (CuteMouse behaviour).
+- Known console interaction: the Victor BIOS scroll routine copies the attribute of the bottom
+  row's column 0 into the new line, so a mouse cursor parked on that cell while the console scrolls
+  leaves a reverse-video cell the driver does not own (seen in MAME, test 5). Move the cursor or
+  hide it (fn 2) before long scrolling output.
 - Resident size is about 2.5 KB including the PSP (MOUSE.DEV: 3.0 KB); `tools/ressize.py` gates it.
 - Reinstalling over a running CTMV9K reloads it in place (same port: no re-detection). Another
   INT 41h owner installed after the driver makes `/U` refuse, as it should.

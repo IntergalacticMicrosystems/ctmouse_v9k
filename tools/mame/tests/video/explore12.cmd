@@ -20,7 +20,7 @@ snap
 sh (printf 'move -1000 -1000\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 4 0\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_1) &
 waitfile @RUN@/flag_1
 wait 0.5
-peek 2dca 4
+peek 2daa 4
 snap
 sh (printf 'press L\nsleep 300\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_2) &
 waitfile @RUN@/flag_2
@@ -29,16 +29,16 @@ snap
 sh (printf 'move 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nsleep 200\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_3) &
 waitfile @RUN@/flag_3
 wait 0.5
-peek 2dca 4
+peek 2daa 4
 snap
 sh (printf 'move 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nsleep 200\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_4) &
 waitfile @RUN@/flag_4
 wait 0.5
-peek 2dca 4
+peek 2daa 4
 snap
 sh (printf 'move 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nmove 0 4\nsleep 200\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_5) &
 waitfile @RUN@/flag_5
 wait 0.5
-peek 2dca 4
+peek 2daa 4
 snap
 exit

@@ -10,12 +10,17 @@ print("INT 41h = %04X:%04X  INT 33h = %04X:%04X" % (s41, o41, s33, o33))
 base = s41 * 16
 code = d[base + o41: base + o41 + 0x80]
 i = code.find(b"\x9c\xff\x1e")                   # pushf; call far [mem]
-if i < 0: print("no chain call in the INT 41h handler (CHAIN41=0 or not CTMV9K)"); sys.exit()
+if i < 0 and s33 not in (0, 0xFFFF):            # INT 41h not ours: look in the INT 33h segment
+    base = s33 * 16
+    code = d[base: base + 0x1000]
+    i = code.find(b"\x9c\xff\x1e")
+    if i >= 0: print("(INT 41h is not CTMV9K's; decoding the INT 33h segment %04X)" % s33)
+if i < 0: print("no chain call found (CHAIN41=0 or not CTMV9K)"); sys.exit()
 a = struct.unpack_from("<H", code, i + 3)[0]
 os_, ss_ = struct.unpack_from("<HH", d, base + a)
 print("oldIRQaddr @%04X = %04X:%04X" % (a, ss_, os_))
-j = code.find(b"\x80\x3e")
-if 0 <= j < i:
+j = code.rfind(b"\x80\x3e", 0, i)
+if 0 <= j < i and i - j < 0x20:
     c = struct.unpack_from("<H", code, j + 2)[0]
     print("chain_ok   @%04X = %d" % (c, d[base + c]))
 if ss_ or os_:

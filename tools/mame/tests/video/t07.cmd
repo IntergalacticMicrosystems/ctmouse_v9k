@@ -19,641 +19,641 @@ items :11a
 snap
 wait 0.3
 print step 000 ref
-mem 3700 9c40 @OUT@/g000.bin
+mem 3000 ac40 @OUT@/g000.bin
 mem 2ce0 100 @OUT@/r000.bin
 snap
 sh (printf 'move 1000 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_1) &
 waitfile @RUN@/flag_1
 wait 0.3
 print step 001 right natural
-mem 3700 9c40 @OUT@/g001.bin
+mem 3000 ac40 @OUT@/g001.bin
 mem 2ce0 100 @OUT@/r001.bin
 poke 2d58 00 00 00 00
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_2) &
 waitfile @RUN@/flag_2
 wait 0.3
 print step 002 right gx=799
-mem 3700 9c40 @OUT@/g002.bin
+mem 3000 ac40 @OUT@/g002.bin
 mem 2ce0 100 @OUT@/r002.bin
 snap
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_3) &
 waitfile @RUN@/flag_3
 wait 0.3
 print step 003 right step
-mem 3700 9c40 @OUT@/g003.bin
+mem 3000 ac40 @OUT@/g003.bin
 mem 2ce0 100 @OUT@/r003.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_4) &
 waitfile @RUN@/flag_4
 wait 0.3
 print step 004 right step
-mem 3700 9c40 @OUT@/g004.bin
+mem 3000 ac40 @OUT@/g004.bin
 mem 2ce0 100 @OUT@/r004.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_5) &
 waitfile @RUN@/flag_5
 wait 0.3
 print step 005 right step
-mem 3700 9c40 @OUT@/g005.bin
+mem 3000 ac40 @OUT@/g005.bin
 mem 2ce0 100 @OUT@/r005.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_6) &
 waitfile @RUN@/flag_6
 wait 0.3
 print step 006 right step
-mem 3700 9c40 @OUT@/g006.bin
+mem 3000 ac40 @OUT@/g006.bin
 mem 2ce0 100 @OUT@/r006.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_7) &
 waitfile @RUN@/flag_7
 wait 0.3
 print step 007 right step
-mem 3700 9c40 @OUT@/g007.bin
+mem 3000 ac40 @OUT@/g007.bin
 mem 2ce0 100 @OUT@/r007.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_8) &
 waitfile @RUN@/flag_8
 wait 0.3
 print step 008 right step
-mem 3700 9c40 @OUT@/g008.bin
+mem 3000 ac40 @OUT@/g008.bin
 mem 2ce0 100 @OUT@/r008.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_9) &
 waitfile @RUN@/flag_9
 wait 0.3
 print step 009 right step
-mem 3700 9c40 @OUT@/g009.bin
+mem 3000 ac40 @OUT@/g009.bin
 mem 2ce0 100 @OUT@/r009.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_10) &
 waitfile @RUN@/flag_10
 wait 0.3
 print step 010 right step
-mem 3700 9c40 @OUT@/g010.bin
+mem 3000 ac40 @OUT@/g010.bin
 mem 2ce0 100 @OUT@/r010.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_11) &
 waitfile @RUN@/flag_11
 wait 0.3
 print step 011 right step
-mem 3700 9c40 @OUT@/g011.bin
+mem 3000 ac40 @OUT@/g011.bin
 mem 2ce0 100 @OUT@/r011.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_12) &
 waitfile @RUN@/flag_12
 wait 0.3
 print step 012 right step
-mem 3700 9c40 @OUT@/g012.bin
+mem 3000 ac40 @OUT@/g012.bin
 mem 2ce0 100 @OUT@/r012.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_13) &
 waitfile @RUN@/flag_13
 wait 0.3
 print step 013 right step
-mem 3700 9c40 @OUT@/g013.bin
+mem 3000 ac40 @OUT@/g013.bin
 mem 2ce0 100 @OUT@/r013.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_14) &
 waitfile @RUN@/flag_14
 wait 0.3
 print step 014 right step
-mem 3700 9c40 @OUT@/g014.bin
+mem 3000 ac40 @OUT@/g014.bin
 mem 2ce0 100 @OUT@/r014.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_15) &
 waitfile @RUN@/flag_15
 wait 0.3
 print step 015 right step
-mem 3700 9c40 @OUT@/g015.bin
+mem 3000 ac40 @OUT@/g015.bin
 mem 2ce0 100 @OUT@/r015.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_16) &
 waitfile @RUN@/flag_16
 wait 0.3
 print step 016 right step
-mem 3700 9c40 @OUT@/g016.bin
+mem 3000 ac40 @OUT@/g016.bin
 mem 2ce0 100 @OUT@/r016.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_17) &
 waitfile @RUN@/flag_17
 wait 0.3
 print step 017 right step
-mem 3700 9c40 @OUT@/g017.bin
+mem 3000 ac40 @OUT@/g017.bin
 mem 2ce0 100 @OUT@/r017.bin
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_18) &
 waitfile @RUN@/flag_18
 wait 0.3
 print step 018 right step
-mem 3700 9c40 @OUT@/g018.bin
+mem 3000 ac40 @OUT@/g018.bin
 mem 2ce0 100 @OUT@/r018.bin
 sh (printf 'move -1000 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_19) &
 waitfile @RUN@/flag_19
 wait 0.3
 print step 019 left natural
-mem 3700 9c40 @OUT@/g019.bin
+mem 3000 ac40 @OUT@/g019.bin
 mem 2ce0 100 @OUT@/r019.bin
 poke 2d58 0f 00 00 00
 sh (printf 'move -1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_20) &
 waitfile @RUN@/flag_20
 wait 0.3
 print step 020 left gx=-15
-mem 3700 9c40 @OUT@/g020.bin
+mem 3000 ac40 @OUT@/g020.bin
 mem 2ce0 100 @OUT@/r020.bin
 snap
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_21) &
 waitfile @RUN@/flag_21
 wait 0.3
 print step 021 left step
-mem 3700 9c40 @OUT@/g021.bin
+mem 3000 ac40 @OUT@/g021.bin
 mem 2ce0 100 @OUT@/r021.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_22) &
 waitfile @RUN@/flag_22
 wait 0.3
 print step 022 left step
-mem 3700 9c40 @OUT@/g022.bin
+mem 3000 ac40 @OUT@/g022.bin
 mem 2ce0 100 @OUT@/r022.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_23) &
 waitfile @RUN@/flag_23
 wait 0.3
 print step 023 left step
-mem 3700 9c40 @OUT@/g023.bin
+mem 3000 ac40 @OUT@/g023.bin
 mem 2ce0 100 @OUT@/r023.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_24) &
 waitfile @RUN@/flag_24
 wait 0.3
 print step 024 left step
-mem 3700 9c40 @OUT@/g024.bin
+mem 3000 ac40 @OUT@/g024.bin
 mem 2ce0 100 @OUT@/r024.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_25) &
 waitfile @RUN@/flag_25
 wait 0.3
 print step 025 left step
-mem 3700 9c40 @OUT@/g025.bin
+mem 3000 ac40 @OUT@/g025.bin
 mem 2ce0 100 @OUT@/r025.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_26) &
 waitfile @RUN@/flag_26
 wait 0.3
 print step 026 left step
-mem 3700 9c40 @OUT@/g026.bin
+mem 3000 ac40 @OUT@/g026.bin
 mem 2ce0 100 @OUT@/r026.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_27) &
 waitfile @RUN@/flag_27
 wait 0.3
 print step 027 left step
-mem 3700 9c40 @OUT@/g027.bin
+mem 3000 ac40 @OUT@/g027.bin
 mem 2ce0 100 @OUT@/r027.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_28) &
 waitfile @RUN@/flag_28
 wait 0.3
 print step 028 left step
-mem 3700 9c40 @OUT@/g028.bin
+mem 3000 ac40 @OUT@/g028.bin
 mem 2ce0 100 @OUT@/r028.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_29) &
 waitfile @RUN@/flag_29
 wait 0.3
 print step 029 left step
-mem 3700 9c40 @OUT@/g029.bin
+mem 3000 ac40 @OUT@/g029.bin
 mem 2ce0 100 @OUT@/r029.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_30) &
 waitfile @RUN@/flag_30
 wait 0.3
 print step 030 left step
-mem 3700 9c40 @OUT@/g030.bin
+mem 3000 ac40 @OUT@/g030.bin
 mem 2ce0 100 @OUT@/r030.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_31) &
 waitfile @RUN@/flag_31
 wait 0.3
 print step 031 left step
-mem 3700 9c40 @OUT@/g031.bin
+mem 3000 ac40 @OUT@/g031.bin
 mem 2ce0 100 @OUT@/r031.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_32) &
 waitfile @RUN@/flag_32
 wait 0.3
 print step 032 left step
-mem 3700 9c40 @OUT@/g032.bin
+mem 3000 ac40 @OUT@/g032.bin
 mem 2ce0 100 @OUT@/r032.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_33) &
 waitfile @RUN@/flag_33
 wait 0.3
 print step 033 left step
-mem 3700 9c40 @OUT@/g033.bin
+mem 3000 ac40 @OUT@/g033.bin
 mem 2ce0 100 @OUT@/r033.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_34) &
 waitfile @RUN@/flag_34
 wait 0.3
 print step 034 left step
-mem 3700 9c40 @OUT@/g034.bin
+mem 3000 ac40 @OUT@/g034.bin
 mem 2ce0 100 @OUT@/r034.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_35) &
 waitfile @RUN@/flag_35
 wait 0.3
 print step 035 left step
-mem 3700 9c40 @OUT@/g035.bin
+mem 3000 ac40 @OUT@/g035.bin
 mem 2ce0 100 @OUT@/r035.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_36) &
 waitfile @RUN@/flag_36
 wait 0.3
 print step 036 left step
-mem 3700 9c40 @OUT@/g036.bin
+mem 3000 ac40 @OUT@/g036.bin
 mem 2ce0 100 @OUT@/r036.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_37) &
 waitfile @RUN@/flag_37
 wait 0.3
 print step 037 left step
-mem 3700 9c40 @OUT@/g037.bin
+mem 3000 ac40 @OUT@/g037.bin
 mem 2ce0 100 @OUT@/r037.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_38) &
 waitfile @RUN@/flag_38
 wait 0.3
 print step 038 left step
-mem 3700 9c40 @OUT@/g038.bin
+mem 3000 ac40 @OUT@/g038.bin
 mem 2ce0 100 @OUT@/r038.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_39) &
 waitfile @RUN@/flag_39
 wait 0.3
 print step 039 left step
-mem 3700 9c40 @OUT@/g039.bin
+mem 3000 ac40 @OUT@/g039.bin
 mem 2ce0 100 @OUT@/r039.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_40) &
 waitfile @RUN@/flag_40
 wait 0.3
 print step 040 left step
-mem 3700 9c40 @OUT@/g040.bin
+mem 3000 ac40 @OUT@/g040.bin
 mem 2ce0 100 @OUT@/r040.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_41) &
 waitfile @RUN@/flag_41
 wait 0.3
 print step 041 left step
-mem 3700 9c40 @OUT@/g041.bin
+mem 3000 ac40 @OUT@/g041.bin
 mem 2ce0 100 @OUT@/r041.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_42) &
 waitfile @RUN@/flag_42
 wait 0.3
 print step 042 left step
-mem 3700 9c40 @OUT@/g042.bin
+mem 3000 ac40 @OUT@/g042.bin
 mem 2ce0 100 @OUT@/r042.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_43) &
 waitfile @RUN@/flag_43
 wait 0.3
 print step 043 left step
-mem 3700 9c40 @OUT@/g043.bin
+mem 3000 ac40 @OUT@/g043.bin
 mem 2ce0 100 @OUT@/r043.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_44) &
 waitfile @RUN@/flag_44
 wait 0.3
 print step 044 left step
-mem 3700 9c40 @OUT@/g044.bin
+mem 3000 ac40 @OUT@/g044.bin
 mem 2ce0 100 @OUT@/r044.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_45) &
 waitfile @RUN@/flag_45
 wait 0.3
 print step 045 left step
-mem 3700 9c40 @OUT@/g045.bin
+mem 3000 ac40 @OUT@/g045.bin
 mem 2ce0 100 @OUT@/r045.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_46) &
 waitfile @RUN@/flag_46
 wait 0.3
 print step 046 left step
-mem 3700 9c40 @OUT@/g046.bin
+mem 3000 ac40 @OUT@/g046.bin
 mem 2ce0 100 @OUT@/r046.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_47) &
 waitfile @RUN@/flag_47
 wait 0.3
 print step 047 left step
-mem 3700 9c40 @OUT@/g047.bin
+mem 3000 ac40 @OUT@/g047.bin
 mem 2ce0 100 @OUT@/r047.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_48) &
 waitfile @RUN@/flag_48
 wait 0.3
 print step 048 left step
-mem 3700 9c40 @OUT@/g048.bin
+mem 3000 ac40 @OUT@/g048.bin
 mem 2ce0 100 @OUT@/r048.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_49) &
 waitfile @RUN@/flag_49
 wait 0.3
 print step 049 left step
-mem 3700 9c40 @OUT@/g049.bin
+mem 3000 ac40 @OUT@/g049.bin
 mem 2ce0 100 @OUT@/r049.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_50) &
 waitfile @RUN@/flag_50
 wait 0.3
 print step 050 left step
-mem 3700 9c40 @OUT@/g050.bin
+mem 3000 ac40 @OUT@/g050.bin
 mem 2ce0 100 @OUT@/r050.bin
 sh (printf 'move 1 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_51) &
 waitfile @RUN@/flag_51
 wait 0.3
 print step 051 left step
-mem 3700 9c40 @OUT@/g051.bin
+mem 3000 ac40 @OUT@/g051.bin
 mem 2ce0 100 @OUT@/r051.bin
 sh (printf 'move 400 0\nmove 0 -1000\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_52) &
 waitfile @RUN@/flag_52
 wait 0.3
 print step 052 top natural
-mem 3700 9c40 @OUT@/g052.bin
+mem 3000 ac40 @OUT@/g052.bin
 mem 2ce0 100 @OUT@/r052.bin
 poke 2d58 00 00 0f 00
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_53) &
 waitfile @RUN@/flag_53
 wait 0.3
 print step 053 top gy=-15
-mem 3700 9c40 @OUT@/g053.bin
+mem 3000 ac40 @OUT@/g053.bin
 mem 2ce0 100 @OUT@/r053.bin
 snap
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_54) &
 waitfile @RUN@/flag_54
 wait 0.3
 print step 054 top step
-mem 3700 9c40 @OUT@/g054.bin
+mem 3000 ac40 @OUT@/g054.bin
 mem 2ce0 100 @OUT@/r054.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_55) &
 waitfile @RUN@/flag_55
 wait 0.3
 print step 055 top step
-mem 3700 9c40 @OUT@/g055.bin
+mem 3000 ac40 @OUT@/g055.bin
 mem 2ce0 100 @OUT@/r055.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_56) &
 waitfile @RUN@/flag_56
 wait 0.3
 print step 056 top step
-mem 3700 9c40 @OUT@/g056.bin
+mem 3000 ac40 @OUT@/g056.bin
 mem 2ce0 100 @OUT@/r056.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_57) &
 waitfile @RUN@/flag_57
 wait 0.3
 print step 057 top step
-mem 3700 9c40 @OUT@/g057.bin
+mem 3000 ac40 @OUT@/g057.bin
 mem 2ce0 100 @OUT@/r057.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_58) &
 waitfile @RUN@/flag_58
 wait 0.3
 print step 058 top step
-mem 3700 9c40 @OUT@/g058.bin
+mem 3000 ac40 @OUT@/g058.bin
 mem 2ce0 100 @OUT@/r058.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_59) &
 waitfile @RUN@/flag_59
 wait 0.3
 print step 059 top step
-mem 3700 9c40 @OUT@/g059.bin
+mem 3000 ac40 @OUT@/g059.bin
 mem 2ce0 100 @OUT@/r059.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_60) &
 waitfile @RUN@/flag_60
 wait 0.3
 print step 060 top step
-mem 3700 9c40 @OUT@/g060.bin
+mem 3000 ac40 @OUT@/g060.bin
 mem 2ce0 100 @OUT@/r060.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_61) &
 waitfile @RUN@/flag_61
 wait 0.3
 print step 061 top step
-mem 3700 9c40 @OUT@/g061.bin
+mem 3000 ac40 @OUT@/g061.bin
 mem 2ce0 100 @OUT@/r061.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_62) &
 waitfile @RUN@/flag_62
 wait 0.3
 print step 062 top step
-mem 3700 9c40 @OUT@/g062.bin
+mem 3000 ac40 @OUT@/g062.bin
 mem 2ce0 100 @OUT@/r062.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_63) &
 waitfile @RUN@/flag_63
 wait 0.3
 print step 063 top step
-mem 3700 9c40 @OUT@/g063.bin
+mem 3000 ac40 @OUT@/g063.bin
 mem 2ce0 100 @OUT@/r063.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_64) &
 waitfile @RUN@/flag_64
 wait 0.3
 print step 064 top step
-mem 3700 9c40 @OUT@/g064.bin
+mem 3000 ac40 @OUT@/g064.bin
 mem 2ce0 100 @OUT@/r064.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_65) &
 waitfile @RUN@/flag_65
 wait 0.3
 print step 065 top step
-mem 3700 9c40 @OUT@/g065.bin
+mem 3000 ac40 @OUT@/g065.bin
 mem 2ce0 100 @OUT@/r065.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_66) &
 waitfile @RUN@/flag_66
 wait 0.3
 print step 066 top step
-mem 3700 9c40 @OUT@/g066.bin
+mem 3000 ac40 @OUT@/g066.bin
 mem 2ce0 100 @OUT@/r066.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_67) &
 waitfile @RUN@/flag_67
 wait 0.3
 print step 067 top step
-mem 3700 9c40 @OUT@/g067.bin
+mem 3000 ac40 @OUT@/g067.bin
 mem 2ce0 100 @OUT@/r067.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_68) &
 waitfile @RUN@/flag_68
 wait 0.3
 print step 068 top step
-mem 3700 9c40 @OUT@/g068.bin
+mem 3000 ac40 @OUT@/g068.bin
 mem 2ce0 100 @OUT@/r068.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_69) &
 waitfile @RUN@/flag_69
 wait 0.3
 print step 069 top step
-mem 3700 9c40 @OUT@/g069.bin
+mem 3000 ac40 @OUT@/g069.bin
 mem 2ce0 100 @OUT@/r069.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_70) &
 waitfile @RUN@/flag_70
 wait 0.3
 print step 070 top step
-mem 3700 9c40 @OUT@/g070.bin
+mem 3000 ac40 @OUT@/g070.bin
 mem 2ce0 100 @OUT@/r070.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_71) &
 waitfile @RUN@/flag_71
 wait 0.3
 print step 071 top step
-mem 3700 9c40 @OUT@/g071.bin
+mem 3000 ac40 @OUT@/g071.bin
 mem 2ce0 100 @OUT@/r071.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_72) &
 waitfile @RUN@/flag_72
 wait 0.3
 print step 072 top step
-mem 3700 9c40 @OUT@/g072.bin
+mem 3000 ac40 @OUT@/g072.bin
 mem 2ce0 100 @OUT@/r072.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_73) &
 waitfile @RUN@/flag_73
 wait 0.3
 print step 073 top step
-mem 3700 9c40 @OUT@/g073.bin
+mem 3000 ac40 @OUT@/g073.bin
 mem 2ce0 100 @OUT@/r073.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_74) &
 waitfile @RUN@/flag_74
 wait 0.3
 print step 074 top step
-mem 3700 9c40 @OUT@/g074.bin
+mem 3000 ac40 @OUT@/g074.bin
 mem 2ce0 100 @OUT@/r074.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_75) &
 waitfile @RUN@/flag_75
 wait 0.3
 print step 075 top step
-mem 3700 9c40 @OUT@/g075.bin
+mem 3000 ac40 @OUT@/g075.bin
 mem 2ce0 100 @OUT@/r075.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_76) &
 waitfile @RUN@/flag_76
 wait 0.3
 print step 076 top step
-mem 3700 9c40 @OUT@/g076.bin
+mem 3000 ac40 @OUT@/g076.bin
 mem 2ce0 100 @OUT@/r076.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_77) &
 waitfile @RUN@/flag_77
 wait 0.3
 print step 077 top step
-mem 3700 9c40 @OUT@/g077.bin
+mem 3000 ac40 @OUT@/g077.bin
 mem 2ce0 100 @OUT@/r077.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_78) &
 waitfile @RUN@/flag_78
 wait 0.3
 print step 078 top step
-mem 3700 9c40 @OUT@/g078.bin
+mem 3000 ac40 @OUT@/g078.bin
 mem 2ce0 100 @OUT@/r078.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_79) &
 waitfile @RUN@/flag_79
 wait 0.3
 print step 079 top step
-mem 3700 9c40 @OUT@/g079.bin
+mem 3000 ac40 @OUT@/g079.bin
 mem 2ce0 100 @OUT@/r079.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_80) &
 waitfile @RUN@/flag_80
 wait 0.3
 print step 080 top step
-mem 3700 9c40 @OUT@/g080.bin
+mem 3000 ac40 @OUT@/g080.bin
 mem 2ce0 100 @OUT@/r080.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_81) &
 waitfile @RUN@/flag_81
 wait 0.3
 print step 081 top step
-mem 3700 9c40 @OUT@/g081.bin
+mem 3000 ac40 @OUT@/g081.bin
 mem 2ce0 100 @OUT@/r081.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_82) &
 waitfile @RUN@/flag_82
 wait 0.3
 print step 082 top step
-mem 3700 9c40 @OUT@/g082.bin
+mem 3000 ac40 @OUT@/g082.bin
 mem 2ce0 100 @OUT@/r082.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_83) &
 waitfile @RUN@/flag_83
 wait 0.3
 print step 083 top step
-mem 3700 9c40 @OUT@/g083.bin
+mem 3000 ac40 @OUT@/g083.bin
 mem 2ce0 100 @OUT@/r083.bin
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_84) &
 waitfile @RUN@/flag_84
 wait 0.3
 print step 084 top step
-mem 3700 9c40 @OUT@/g084.bin
+mem 3000 ac40 @OUT@/g084.bin
 mem 2ce0 100 @OUT@/r084.bin
 sh (printf 'move 0 1000\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_85) &
 waitfile @RUN@/flag_85
 wait 0.3
 print step 085 bottom natural
-mem 3700 9c40 @OUT@/g085.bin
+mem 3000 ac40 @OUT@/g085.bin
 mem 2ce0 100 @OUT@/r085.bin
 poke 2d58 00 00 00 00
 sh (printf 'move 0 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_86) &
 waitfile @RUN@/flag_86
 wait 0.3
 print step 086 bottom gy=399
-mem 3700 9c40 @OUT@/g086.bin
+mem 3000 ac40 @OUT@/g086.bin
 mem 2ce0 100 @OUT@/r086.bin
 snap
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_87) &
 waitfile @RUN@/flag_87
 wait 0.3
 print step 087 bottom step
-mem 3700 9c40 @OUT@/g087.bin
+mem 3000 ac40 @OUT@/g087.bin
 mem 2ce0 100 @OUT@/r087.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_88) &
 waitfile @RUN@/flag_88
 wait 0.3
 print step 088 bottom step
-mem 3700 9c40 @OUT@/g088.bin
+mem 3000 ac40 @OUT@/g088.bin
 mem 2ce0 100 @OUT@/r088.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_89) &
 waitfile @RUN@/flag_89
 wait 0.3
 print step 089 bottom step
-mem 3700 9c40 @OUT@/g089.bin
+mem 3000 ac40 @OUT@/g089.bin
 mem 2ce0 100 @OUT@/r089.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_90) &
 waitfile @RUN@/flag_90
 wait 0.3
 print step 090 bottom step
-mem 3700 9c40 @OUT@/g090.bin
+mem 3000 ac40 @OUT@/g090.bin
 mem 2ce0 100 @OUT@/r090.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_91) &
 waitfile @RUN@/flag_91
 wait 0.3
 print step 091 bottom step
-mem 3700 9c40 @OUT@/g091.bin
+mem 3000 ac40 @OUT@/g091.bin
 mem 2ce0 100 @OUT@/r091.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_92) &
 waitfile @RUN@/flag_92
 wait 0.3
 print step 092 bottom step
-mem 3700 9c40 @OUT@/g092.bin
+mem 3000 ac40 @OUT@/g092.bin
 mem 2ce0 100 @OUT@/r092.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_93) &
 waitfile @RUN@/flag_93
 wait 0.3
 print step 093 bottom step
-mem 3700 9c40 @OUT@/g093.bin
+mem 3000 ac40 @OUT@/g093.bin
 mem 2ce0 100 @OUT@/r093.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_94) &
 waitfile @RUN@/flag_94
 wait 0.3
 print step 094 bottom step
-mem 3700 9c40 @OUT@/g094.bin
+mem 3000 ac40 @OUT@/g094.bin
 mem 2ce0 100 @OUT@/r094.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_95) &
 waitfile @RUN@/flag_95
 wait 0.3
 print step 095 bottom step
-mem 3700 9c40 @OUT@/g095.bin
+mem 3000 ac40 @OUT@/g095.bin
 mem 2ce0 100 @OUT@/r095.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_96) &
 waitfile @RUN@/flag_96
 wait 0.3
 print step 096 bottom step
-mem 3700 9c40 @OUT@/g096.bin
+mem 3000 ac40 @OUT@/g096.bin
 mem 2ce0 100 @OUT@/r096.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_97) &
 waitfile @RUN@/flag_97
 wait 0.3
 print step 097 bottom step
-mem 3700 9c40 @OUT@/g097.bin
+mem 3000 ac40 @OUT@/g097.bin
 mem 2ce0 100 @OUT@/r097.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_98) &
 waitfile @RUN@/flag_98
 wait 0.3
 print step 098 bottom step
-mem 3700 9c40 @OUT@/g098.bin
+mem 3000 ac40 @OUT@/g098.bin
 mem 2ce0 100 @OUT@/r098.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_99) &
 waitfile @RUN@/flag_99
 wait 0.3
 print step 099 bottom step
-mem 3700 9c40 @OUT@/g099.bin
+mem 3000 ac40 @OUT@/g099.bin
 mem 2ce0 100 @OUT@/r099.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_100) &
 waitfile @RUN@/flag_100
 wait 0.3
 print step 100 bottom step
-mem 3700 9c40 @OUT@/g100.bin
+mem 3000 ac40 @OUT@/g100.bin
 mem 2ce0 100 @OUT@/r100.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_101) &
 waitfile @RUN@/flag_101
 wait 0.3
 print step 101 bottom step
-mem 3700 9c40 @OUT@/g101.bin
+mem 3000 ac40 @OUT@/g101.bin
 mem 2ce0 100 @OUT@/r101.bin
 sh (printf 'move 0 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_102) &
 waitfile @RUN@/flag_102
 wait 0.3
 print step 102 bottom step
-mem 3700 9c40 @OUT@/g102.bin
+mem 3000 ac40 @OUT@/g102.bin
 mem 2ce0 100 @OUT@/r102.bin
 sh (printf 'move -1000 -1000\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_103) &
 waitfile @RUN@/flag_103
 wait 0.3
 print step 103 TL natural
-mem 3700 9c40 @OUT@/g103.bin
+mem 3000 ac40 @OUT@/g103.bin
 mem 2ce0 100 @OUT@/r103.bin
 poke 2d58 0f 00 0f 00
 sh (printf 'move -1 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_104) &
 waitfile @RUN@/flag_104
 wait 0.3
 print step 104 TL -15,-15
-mem 3700 9c40 @OUT@/g104.bin
+mem 3000 ac40 @OUT@/g104.bin
 mem 2ce0 100 @OUT@/r104.bin
 snap
 poke 2d58 10 00 00 00
@@ -661,27 +661,27 @@ sh (printf 'move -1 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a)
 waitfile @RUN@/flag_105
 wait 0.3
 print step 105 TL hidden gx=-16
-mem 3700 9c40 @OUT@/g105.bin
+mem 3000 ac40 @OUT@/g105.bin
 mem 2ce0 100 @OUT@/r105.bin
 poke 2d58 00 00 10 00
 sh (printf 'move -1 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_106) &
 waitfile @RUN@/flag_106
 wait 0.3
 print step 106 TL hidden gy=-16
-mem 3700 9c40 @OUT@/g106.bin
+mem 3000 ac40 @OUT@/g106.bin
 mem 2ce0 100 @OUT@/r106.bin
 sh (printf 'move 1000 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_107) &
 waitfile @RUN@/flag_107
 wait 0.3
 print step 107 TR natural
-mem 3700 9c40 @OUT@/g107.bin
+mem 3000 ac40 @OUT@/g107.bin
 mem 2ce0 100 @OUT@/r107.bin
 poke 2d58 00 00 0f 00
 sh (printf 'move 1 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_108) &
 waitfile @RUN@/flag_108
 wait 0.3
 print step 108 TR 799,-15
-mem 3700 9c40 @OUT@/g108.bin
+mem 3000 ac40 @OUT@/g108.bin
 mem 2ce0 100 @OUT@/r108.bin
 snap
 poke 2d58 ff ff 00 00
@@ -689,20 +689,20 @@ sh (printf 'move 1 -1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) 
 waitfile @RUN@/flag_109
 wait 0.3
 print step 109 TR hidden gx=800
-mem 3700 9c40 @OUT@/g109.bin
+mem 3000 ac40 @OUT@/g109.bin
 mem 2ce0 100 @OUT@/r109.bin
 sh (printf 'move 0 1000\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_110) &
 waitfile @RUN@/flag_110
 wait 0.3
 print step 110 BR natural
-mem 3700 9c40 @OUT@/g110.bin
+mem 3000 ac40 @OUT@/g110.bin
 mem 2ce0 100 @OUT@/r110.bin
 poke 2d58 00 00 00 00
 sh (printf 'move 1 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_111) &
 waitfile @RUN@/flag_111
 wait 0.3
 print step 111 BR 799,399
-mem 3700 9c40 @OUT@/g111.bin
+mem 3000 ac40 @OUT@/g111.bin
 mem 2ce0 100 @OUT@/r111.bin
 snap
 poke 2d58 00 00 ff ff
@@ -710,20 +710,20 @@ sh (printf 'move 1 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >
 waitfile @RUN@/flag_112
 wait 0.3
 print step 112 BR hidden gy=400
-mem 3700 9c40 @OUT@/g112.bin
+mem 3000 ac40 @OUT@/g112.bin
 mem 2ce0 100 @OUT@/r112.bin
 sh (printf 'move -1000 0\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_113) &
 waitfile @RUN@/flag_113
 wait 0.3
 print step 113 BL natural
-mem 3700 9c40 @OUT@/g113.bin
+mem 3000 ac40 @OUT@/g113.bin
 mem 2ce0 100 @OUT@/r113.bin
 poke 2d58 0f 00 00 00
 sh (printf 'move -1 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_114) &
 waitfile @RUN@/flag_114
 wait 0.3
 print step 114 BL -15,399
-mem 3700 9c40 @OUT@/g114.bin
+mem 3000 ac40 @OUT@/g114.bin
 mem 2ce0 100 @OUT@/r114.bin
 snap
 poke 2d58 00 00 0f 00
@@ -731,13 +731,13 @@ sh (printf 'move -1 1\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) 
 waitfile @RUN@/flag_115
 wait 0.3
 print step 115 BL 0,384
-mem 3700 9c40 @OUT@/g115.bin
+mem 3000 ac40 @OUT@/g115.bin
 mem 2ce0 100 @OUT@/r115.bin
 sh (printf 'move 400 -200\n' | @FEED@ --script /dev/stdin --port $(cat @RUN@/pty_a) >> @RUN@/feed.log 2>&1; touch @RUN@/flag_116) &
 waitfile @RUN@/flag_116
 wait 0.3
 print step 116 centre
-mem 3700 9c40 @OUT@/g116.bin
+mem 3000 ac40 @OUT@/g116.bin
 mem 2ce0 100 @OUT@/r116.bin
 snap
 exit

@@ -16,11 +16,19 @@ from resdump import decode
 out, log = sys.argv[1], sys.argv[2]
 labels = dict(re.findall(r'step (\d{3}) (.*)', open(log).read()))
 steps = sorted(int(k) for k in labels)
+txt = open(log).read()
+w0 = re.search(r'f0000: (\w\w) (\w\w)', txt)
+r12 = int(re.search(r'm_disp_start_addr = (\w+)', txt).group(1), 16) >> 8
+base = int(w0.group(2) + w0.group(1), 16) & 0x7FF
+bseg = (0x1000 if r12 & 0x10 else 0) + 2 * base
+off = bseg * 16 - 0x3000                     # gen_t07.py dumps from 3000h
+print('R12=%02x word0 base=%03x bitmap_seg=%04x (dump offset %x)' % (r12, base, bseg, off))
+assert r12 & 0x20 and 0 <= off <= 0x1000, 'not in graphics mode or bitmap outside the dump window'
 dumps, res = {}, {}
 for i in steps:
     g, r = os.path.join(out, 'g%03d.bin' % i), os.path.join(out, 'r%03d.bin' % i)
     if os.path.exists(g) and os.path.exists(r):
-        dumps[i] = vm.screen_from_bytes(open(g, 'rb').read())
+        dumps[i] = vm.screen_from_bytes(open(g, 'rb').read()[off:off + 40000])
         res[i] = decode(open(r, 'rb').read())
 
 
