@@ -1,6 +1,8 @@
 # ctmouse_v9k
 Work on a port to Victor 9000 DOS and hardware
 
+**Download:** [ctmousev.exe](https://github.com/IntergalacticMicrosystems/ctmouse_v9k/raw/main/ctmousev.exe) (the Victor 9000 mouse driver, prebuilt)
+
 ## CTMOUSEV: CuteMouse for the Victor 9000 / Sirius 1
 
 `make v9k` builds `ctmousev.exe` from `ctmousev.asm`, `ctmousev-video.inc` and `ctmousev-en.msg`. It is a
