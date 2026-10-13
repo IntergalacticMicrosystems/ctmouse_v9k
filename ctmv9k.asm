@@ -44,7 +44,7 @@ FOOLPROOF	 = 1		; check driver arguments validness
 USE_MSYS	 equ 0		; include Mouse Systems decoder and /M option
 USE_WHEEL	 equ 1		; include MS wheel mouse (4th byte) support
 MODEGUARD	 equ 1		; render target guard on draw/restore (not used yet)
-CHAIN41		 equ 0		; chain the old INT 41h handler (not used yet)
+CHAIN41		 equ 0		; chain the old INT 41h handler (phase 3)
 HWCURSOR	 equ 0		; 6845 hardware text cursor in fn 0Ah (not used yet)
 
 ;------------------------------------------------------------------------
@@ -61,6 +61,39 @@ include asmlib/dos/mem.mac
 if @CPU and 4
 .err <ctmv9k is an 8086 build>
 endif
+
+;----- Victor 9000 hardware (all memory-mapped, offsets in segment IO_SEG)
+
+IO_SEG		equ 0E000h
+PIC_OCW		equ 0000h	; 8259A A0=0: OCW2
+PIC_IMR		equ 0001h	; 8259A A0=1: IMR (OCW1), IR1 = bit 1
+PIC_EOI_IR1	equ 61h		; OCW2: specific EOI, level 1
+PIC_IR1		equ 02h		; IMR bit 1: 7201 (INT 41h)
+PIT_CNT0	equ 0020h	; 8253 counter 0: baud clock of 7201 channel A
+PIT_CNT1	equ 0021h	; 8253 counter 1: baud clock of 7201 channel B
+PIT_CTRL	equ 0023h	; 8253 mode word: 36h counter 0, 76h counter 1
+BAUD_COUNT	equ 65		; x16 clock -> 1200 baud (MOUSE.DEV value)
+SIO_DATA_A	equ 0040h	; uPD7201 data, channel A
+SIO_DATA_B	equ 0041h	; uPD7201 data, channel B
+SIO_CTRL_A	equ 0042h	; uPD7201 control, channel A (pointer, then value)
+SIO_CTRL_B	equ 0043h	; uPD7201 control, channel B
+IVT_INT41	equ 0104h	; 0000:0104h, INT 41h = 8259 base 40h + IR1
+
+; uPD7201 register values
+WR0_RESEXT	equ 10h		; WR0 command 2: reset external/status interrupts
+WR0_CHRESET	equ 18h		; WR0 command 3: channel reset
+WR0_ERRRES	equ 30h		; WR0 command 6: error reset
+WR0_EOI		equ 38h		; WR0 command 7: end of interrupt (channel A only)
+WR1_RXALL	equ 10h		; WR1: Rx interrupt on every character, Tx/ext off
+WR2A_VAL	equ 14h		; WR2A: both channels interrupt driven, priority
+WR3_VAL		equ 41h		; WR3: Rx 7 bits, Rx enable, no auto enables
+WR3_VAL8	equ 0C1h	; WR3: Rx 8 bits, Rx enable (Mouse Systems 8N1)
+WR4_VAL		equ 44h		; WR4: x16 clock, 1 stop bit, no parity
+WR5_RTSOFF	equ 0E8h	; WR5: DTR, Tx 8 bits, Tx enable, RTS off
+WR5_RTSON	equ 0EAh	; WR5: same + RTS on (mouse powered)
+RR0_RXAVAIL	equ 01h		; RR0 bit 0: Rx character available
+RR0_INTPEND	equ 02h		; RR0 bit 1: interrupt pending (channel A only)
+RR1_ERRORS	equ 70h		; RR1 bits 4-6: parity, overrun, framing error
 
 _ARG_DI_	equ <word ptr [bp]>
 _ARG_SI_	equ <word ptr [bp+2]>
@@ -130,7 +163,7 @@ TSRavail	label byte			; initialized data may come from here
 ;		they will not be present in the executable image
 
 		org	PSP_TSR-3*16	; reuse part of PSP
-spritebuf	db	3*16 dup (?)	; copy of screen sprite in modes 4-6
+spritebuf	db	4*16 dup (?)	; graphics cursor save buffer (1Eh-5Dh)
 
 ;----- application state -----
 
@@ -197,7 +230,8 @@ szSaveArea = $ - SaveArea
 ;----- old interrupt vectors -----
 
 oldint33	dd	?		; old INT 33 handler address
-oldIRQaddr	dd	?		; old IRQ handler address
+oldIRQaddr	dd	?		; old INT 41h handler address
+oldIMR		db	?		; 8259 IMR found at install (bit 1 used)
 
 
 ;=========================== INITIALIZED DATA ===========================
@@ -205,10 +239,10 @@ oldIRQaddr	dd	?		; old IRQ handler address
 		even
 TSRdata		label byte
 
-if (TSRdata lt TSRavail)
-	;echo TSR uninitialized data area too small ( No error ).
-	ORG TSRavail
-endif
+; TSRdata must not be below TSRavail (the initialized data would overwrite
+; the entry jmp). The assembler's conditionals see unreliable pass values
+; here, so tools/ressize.py checks the overlap in the built binary instead
+; (RESSZ marker).
 
 DefArea = $
 		POINT	<8,16>			; mickey8
@@ -269,6 +303,13 @@ videoseg	equ <cursor@[2]>	; 0=not supported video mode
 UIRunlock	db	1		; 0=user intr routine is in progress
 videolock	db	1		; drawing: 1=ready,0=busy,-1=busy+queue
 newcursor	db	0		; 1=force cursor redraw
+pendevents	db	0		; events accounted, UIR/redraw pending
+if CHAIN41
+chain_ok	db	0		; 1=old INT 41h handler may be chained
+endif
+maxcoord	POINT	<799,399>	; screen limits for ranges (fn 7/8/17/26)
+scanline	dw	?		; screen line width in bytes
+screenheight	dw	?		; screen height in pixels
 
 
 ;============================= IRQ HANDLERS =============================
@@ -282,51 +323,119 @@ IRQhandler	proc
 		push es
 		PUSHALL
 		MOVSEG	ds,cs,,@TSRdata
+		mov	ax,IO_SEG
+		mov	es,ax
+
+;----- drain our Rx FIFO completely (IF=0: pointer pairs are atomic)
+
+@@drain:
+;	CODE_	MOV_BX	IOctrl,<dw ?>		; SIO_CTRL_A/B, set at install
+		OPCODE_MOV_BX
+IOctrl		dw SIO_CTRL_A
+		test	byte ptr es:[bx],RR0_RXAVAIL ; RR0 bit 0: Rx char available?
+		jz	@@drained
+		mov	byte ptr es:[bx],1	; WR0: pointer 1
+		mov	ah,es:[bx]		; RR1: bits 4-6 parity/overrun/framing
+		mov	al,es:[bx-2]		; SIO_DATA_A/B: received byte
 ;	CODE_	MOV_CX	IOdone,<db ?,0>		; processed bytes counter
 		OPCODE_MOV_CX
 IOdone		db ?,0
-; PHASE2: EOI the 8259 (E000:0000), drain the 7201 Rx FIFO (RR0/RR1, error
-;	reset clears IOdone) and pass each good byte in AL to mouseproc
-		j	@@irqhandlernc		; PHASE2: no 7201 byte read yet
+		test	ah,RR1_ERRORS
+		jnz	@@rxerror
 if USE_MSYS
 		call_	mouseproc,MSMproc
 else
 		call_	mouseproc,MSLTproc
 endif
-@@irqhandlernc:
+		j	@@drain
+
+@@rxerror:	mov	byte ptr es:[bx],WR0_ERRRES ; WR0: error reset, byte dropped
+		mov	[IOdone],ch		; CH=0: resync on next sync byte
+		j	@@drain
+
+@@drained:
+if CHAIN41
+		test	byte ptr es:[SIO_CTRL_A],RR0_INTPEND ; RR0A bit 1: any
+		jz	@@eoi			;  interrupt still pending (ours is
+		cmp	[chain_ok],0		;  drained: the other channel's)
+		je	@@eoi
+		pushf
+		call	[oldIRQaddr]		; owner serves it and sends both EOIs
+		j	@@notify
+@@eoi:
+endif
+		mov	byte ptr es:[SIO_CTRL_A],WR0_EOI ; WR0A: end of interrupt
+		mov	byte ptr es:[PIC_OCW],PIC_EOI_IR1 ; 8259 OCW2: EOI IR1
+@@notify:	call	mousenotify		; UIR and cursor redraw (may STI)
 		jmp	rethandler
 IRQhandler	endp
 		assume	ds:@TSRdata
 
 ;========================================================================
-;			Enable serial interrupt in PIC
+;		Enable 7201 Rx interrupts and hook INT 41h
 ;========================================================================
 ;
 ; In:	none
 ; Out:	none
-; Use:	none
-; Modf:	none
+; Use:	IOctrl
+; Modf:	AX, CX, BX, ES, IOdone
 ; Call:	none
 ;
-enableUART	proc
-; PHASE2: enable7201 (hook INT 41h, 7201 Rx interrupts on, unmask IR1)
+enable7201	proc
+		xor	ax,ax
+		mov	es,ax			; ES=0: interrupt vector table
+		pushf
+		cli				; keep the caller's IF (popf)
+		mov	word ptr es:[IVT_INT41],TSRcref:IRQhandler
+		mov	es:[IVT_INT41+2],cs	; INT 41h -> IRQhandler (no INT 21h)
+		mov	ax,IO_SEG
+		mov	es,ax
+		mov	bx,[IOctrl]
+		mov	cx,4			; FIFO holds 3 bytes: bounded drain
+@@en_drain:	test	byte ptr es:[bx],RR0_RXAVAIL ; RR0 bit 0: Rx char available?
+		jz	@@en_empty
+		mov	al,es:[bx-2]		; SIO_DATA_A/B: discard the byte
+		loop	@@en_drain
+@@en_empty:	mov	byte ptr es:[bx],1	; WR0: pointer 1
+		mov	byte ptr es:[bx],WR1_RXALL ; WR1: Rx interrupt on every char
+		mov	byte ptr es:[PIC_OCW],PIC_EOI_IR1 ; 8259 OCW2: clear a stale IR1
+		and	byte ptr es:[PIC_IMR],not PIC_IR1 ; 8259 IMR: unmask IR1
+		mov	[IOdone],0		; next byte must be a sync byte
+		popf
 		ret
-enableUART	endp
+enable7201	endp
 
 ;========================================================================
-;			Disable serial interrupt of PIC
+;		Disable 7201 Rx interrupts and unhook INT 41h
 ;========================================================================
 ;
-; In:	none
+; In:	none			(called only after the ownership check)
 ; Out:	none
-; Use:	none
-; Modf:	none
+; Use:	IOctrl, oldIRQaddr, oldIMR
+; Modf:	AX, BX, SI, DI, ES
 ; Call:	none
 ;
-disableUART	proc
-; PHASE2: disable7201 (mask IR1, 7201 interrupts off, restore INT 41h)
+disable7201	proc
+		pushf
+		cli				; keep the caller's IF (popf)
+		mov	ax,IO_SEG
+		mov	es,ax
+		mov	bx,[IOctrl]
+		mov	byte ptr es:[bx],1	; WR0: pointer 1
+		mov	byte ptr es:[bx],0	; WR1: all 7201 interrupts off
+		mov	al,[oldIMR]		; 8259 IMR bit 1 := bit 1 found at
+		xor	al,es:[PIC_IMR]		;  install. The vector handed back
+		and	al,PIC_IR1		;  below is always that found at
+		xor	es:[PIC_IMR],al		;  install (ownership checked first)
+		xor	ax,ax
+		mov	es,ax			; ES=0: interrupt vector table
+		mov	si,TSRdref:oldIRQaddr
+		mov	di,IVT_INT41
+		movsw				; restore old INT 41h vector
+		movsw
+		popf
 		ret
-disableUART	endp
+disable7201	endp
 
 ;========================================================================
 ;		Process the Microsoft/Logitech packet bytes
@@ -469,10 +578,10 @@ endif ; USE_MSYS
 ;	AH			(wheel movemement)
 ;	BX			(X mouse movement)
 ;	CX			(Y mouse movement)
-; Out:	none
-; Use:	callmask, granpos, mickeys, UIR@
-; Modf:	AX, CX, DX, BX, SI, DI, wheel, wheelUIR, UIRunlock
-; Call:	updateposition, updatebutton, refreshcursor
+; Out:	none			(IF=0, before the EOIs: no UIR, no redraw)
+; Use:	granpos, mickeys
+; Modf:	AX, CX, DX, BX, SI, DI, wheel, wheelUIR, pendevents
+; Call:	updateposition, updatebutton
 ;
 if USE_MSYS
 reverseY	proc
@@ -490,10 +599,10 @@ swapbuttons	proc
 swapmask	db 00000011b
 ;	end_
 @@swapeven:
-		;j	mouseupdate
+		;j	mouseaccount
 swapbuttons	endp
 
-mouseupdate	proc
+mouseaccount	proc
 ;	CODE_	AND_AX
 		OPCODE_AND_AX
 buttonsmask	db	00000111b	; =8
@@ -556,11 +665,31 @@ if FASTER_CODE
 @@btnfastz:
 endif
 
-;----- call User Interrupt Routine (CX=events mask)
+;----- events are reported by mousenotify after the EOI
 
+		or	[pendevents],cl
+		ret
+mouseaccount	endp
+
+;========================================================================
+;		Call User Interrupt Routine and redraw cursor
+;========================================================================
+;
+; In:	none			(IF=0, called from IRQhandler after the EOIs)
+; Out:	none
+; Use:	pendevents, callmask, granpos, mickeys, UIR@
+; Modf:	AX, CX, DX, BX, SI, DI, wheelUIR, UIRunlock
+; Call:	refreshcursor
+;
+mousenotify	proc
 		dec	[UIRunlock]
 ;	if_ zero				; if user proc not running
 	jnz @@uirnz
+;	loop_					; until no events pending
+@@notifyloop:	cli
+		xor	cx,cx
+		xchg	cl,[pendevents]
+		jcxz	@@uirnz
 		and	cl,[callmask]
 ;	 if_ nz					; if there is a user events
 	jz @@maskz
@@ -572,7 +701,7 @@ buttstatus	db 0,0
 		mov	dx,[granpos.Y]
 		xchg	ax,cx
 		mov	si,[mickeys.X]
-		;mov	di,[mickeys.Y]
+		mov	di,[mickeys.Y]
 		push	ds
 		sti
 		call	[UIR@]
@@ -580,14 +709,13 @@ buttstatus	db 0,0
 ;	 end_
 @@maskz:
 		call	refreshcursor
+		j	@@notifyloop
 ;	end_
 @@uirnz:
-
-;-----
-
 		inc	[UIRunlock]
 		ret
-mouseupdate	endp
+mousenotify	endp
+
 
 ;========================================================================
 ; In:	AX			(mouse movement)
@@ -1014,8 +1142,8 @@ softreset_21	endp
 ; Out:	[AX] = 1Fh/FFFFh	(success/unsuccess)
 ;	[ES:BX]			(old int33 handler)
 ; Use:	oldint33
-; Modf:	AX, CX, DX, BX, DS, ES, disabled?, nocursorcnt
-; Call:	INT 21/35, disableUART, hidecursor
+; Modf:	AX, CX, BX, SI, DI, ES, disabled?, nocursorcnt
+; Call:	disable7201, hidecursor
 ;
 disabledrv_1F	proc
 		les	ax,[oldint33]
@@ -1023,30 +1151,36 @@ disabledrv_1F	proc
 		mov	[_ARG_ES_],es
 		mov	[_ARG_BX_],ax
 
-		; PHASE2: patched to disable7201, ownership check first (plan 3.4)
-		call_	disableproc,disableUART	; can change ES!
+;----- ownership first: INT 33h (and INT 41h, if enabled) must still
+;	point to us, else refuse and change nothing
 
-		mov	al,[disabled?]
-		test	al,al
-;	if_ zero				; if driver not disabled
-	jnz @@ddrvnz
+		mov	cx,cs
+		xor	ax,ax
+		mov	es,ax			; ES=0: interrupt vector table
+		pushf
+		cli
+		cmp	word ptr es:[33h*4],TSRcref:handler33
+		jne	@@ddrvfail
+		cmp	es:[33h*4+2],cx
+		jne	@@ddrvfail
+		cmp	[disabled?],al		; OPTIMIZE: AL instead 0
+		jne	@@ddrvok		; already disabled: nothing to undo
+		cmp	word ptr es:[IVT_INT41],TSRcref:IRQhandler
+		jne	@@ddrvfail
+		cmp	es:[IVT_INT41+2],cx
+		jne	@@ddrvfail
+
 		mov	[buttstatus],al
 		inc	ax			; OPTIMIZE: instead MOV AL,1
 		mov	[nocursorcnt],al	; normalize hide counter
-		call	hidecursor		; restore screen contents
+		mov	[disabled?],al
+		call_	disableproc,disable7201	; can change ES!
+		popf
+		jmp	hidecursor		; restore screen contents
 
-;----- check if INT 33 was intercepted
-;	(i.e. handler segment not equal to CS)
-
-		mov	cx,cs
-		DOSGetIntr 33h
-		mov	dx,es
-		cmp	dx,cx
-		jne	althandler_18
-
-		mov	[disabled?],1
-;	end_ if
-@@ddrvnz:
+@@ddrvfail:	popf
+		j	althandler_18		; [AX]=FFFFh
+@@ddrvok:	popf
 		ret
 disabledrv_1F	endp
 
@@ -1101,13 +1235,12 @@ resetdriver_00	endp
 ; Out:	[AX] = 20h/FFFFh	(success/unsuccess)
 ; Use:	none
 ; Modf:	AX, CX, DX, BX, ES, disabled?
-; Call:	setupvideo, enableUART
+; Call:	setupvideo, enable7201
 ;
 enabledriver_20	proc
 		mov	[disabled?],0
 		call	setupvideo
-		; PHASE2: patched to enable7201
-		jmp_	enableproc,enableUART	; can change ES!
+		jmp_	enableproc,enable7201	; can change ES!
 enabledriver_20	endp
 
 ;========================================================================
@@ -1375,19 +1508,7 @@ hrange_07	endp
 vrange_08	proc
 ;		MOVREG_	bx,<offset Y>
 		mov	bx,offset POINT.Y
-if FOOLPROOF
-@setnewrange::	xchg	ax,cx			; OPTIMIZE: instead MOV AX,CX
-		cmp	ax,dx
-;	if_ ge
-	jl @@snrl
-		xchg	ax,dx
-;	end_
-@@snrl:
-		mov	word ptr rangemin[bx],ax
-else
-@setnewrange::	mov	word ptr rangemin[bx],cx
-endif
-		mov	word ptr rangemax[bx],dx
+@setnewrange::	call	setrange
 		mov	cx,[pos.X]
 		mov	dx,[pos.Y]
 		;j	setpos_04
@@ -1635,8 +1756,65 @@ endif
 		assume	ds:nothing
 		memcopy	szSaveArea,,,@TSRdata:SaveArea
 		MOVSEG	ds,es,,@TSRdata
+		xor	bx,bx			; offset POINT.X
+		call	@restrange		; clamp the restored ranges
+		mov	bl,offset POINT.Y
+		call	@restrange
 		j	redrawcursor
 restorestate_17	endp
+
+;========================================================================
+;		Set cursor range clamped to the screen
+;========================================================================
+;
+; In:	CX			(min)
+;	DX			(max)
+;	BX			(offset X/offset Y)
+; Out:	none
+; Use:	maxcoord
+; Modf:	AX, DX, rangemin, rangemax
+; Call:	clampcoord
+;
+@restrange:	mov	cx,word ptr rangemin[bx]
+		mov	dx,word ptr rangemax[bx]
+setrange	proc
+		xchg	ax,cx			; OPTIMIZE: instead MOV AX,CX
+if FOOLPROOF
+		cmp	ax,dx
+;	if_ ge
+	jl @@snrl
+		xchg	ax,dx
+;	end_
+@@snrl:
+endif
+		call	clampcoord
+		mov	word ptr rangemin[bx],ax
+		xchg	ax,dx
+		call	clampcoord
+		mov	word ptr rangemax[bx],ax
+		ret
+setrange	endp
+
+;========================================================================
+; In:	AX			(coordinate)
+;	BX			(offset X/offset Y)
+; Out:	AX			(clamped to 0..maxcoord)
+;
+clampcoord	proc
+		test	ax,ax
+;	if_ sign
+	jns @@ccns
+		xor	ax,ax
+;	end_
+@@ccns:
+		cmp	ax,word ptr maxcoord[bx]
+;	if_ gt
+	jle @@ccle
+		mov	ax,word ptr maxcoord[bx]
+;	end_
+@@ccle:
+		ret
+clampcoord	endp
 
 ;========================================================================
 ; 0D - Light pen emulation ON
@@ -1865,6 +2043,7 @@ endif
 		dw TSRcref:enabledriver_20
 		dw TSRcref:softreset_21
 
+		db	'MOUSE'			; signature right before the entry
 handler33	proc
 		assume	ds:nothing,es:nothing
 		cld
@@ -1900,41 +2079,35 @@ language_23:	cmp	al,23h
 ; 24 - Get software version, mouse type and IRQ
 ; Out:	[AX] = 24h/FFFFh	(installed/error)
 ;	[BX]			(version)
-;	[CL]			(IRQ #/0=PS/2)
-;	[CH] = 1=bus/2=serial/3=InPort/4=PS2/5=HP (mouse type)
+;	[CL] = 1		(8259 IR1)
+;	[CH] = 2		(mouse type: serial)
+;	[DL]			(V9K: 7201 channel, 0=A, 1=B)
+;	[DH] = 'V'		(V9K: DL is valid)
 ; Use:	driverversion
 ;
 version_24:	cmp	al,24h
 ;	if_ eq
 	jnz @@v24nz
 		mov	bx,driverversion
-;	CODE_	MOV_CX	mouseinfo,<db ?,4>
-		OPCODE_MOV_CX
-mouseinfo	db ?,4
+		mov	cx,0201h		; CH=2 serial, CL=1 IR1
+;	CODE_	MOV_DX	v9kport,<db ?,'V'>
+		OPCODE_MOV_DX
+v9kport		db 0FFh,'V'		; 0=A, 1=B, set at install
 ;	end_
 @@v24nz:
 
 ;========================================================================
 ; 26 - Get maximum virtual screen coordinates
 ; Out:	[BX]			(mouse disabled flag)
-;	[CX]			(max virtual screen X)
-;	[DX]			(max virtual screen Y)
-; Use:	bitmapshift
+;	[CX] = 799		(max virtual screen X)
+;	[DX] = 399		(max virtual screen Y)
+; Use:	maxcoord
 ;
 maxscreen_26:	cmp	al,26h
 ;	if_ eq
 	jnz @@m26nz
-		mov	cl,[bitmapshift]
-;	CODE_	MOV_BX	scanline,<dw ?>
-		OPCODE_MOV_BX
-scanline	dw ?
-;	CODE_	MOV_DX	screenheight,<dw ?>
-		OPCODE_MOV_DX
-screenheight	dw ?
-		shl	bx,cl
-		dec	dx
-		mov	cx,bx
-		dec	cx
+		lds	cx,[maxcoord]		; DS is restored at the exit
+		mov	dx,ds
 ;	CODE_	MOV_BX	disabled?,<db 1,0>	; 1=driver disabled
 		OPCODE_MOV_BX
 disabled?	db 1,0
@@ -2047,7 +2220,7 @@ hotspot_2A:	cmp	al,2Ah
 		mov	cx,ds
 ;	CODE_	MOV_DX	mouseinfo1,<db 4,0>
 		OPCODE_MOV_DX
-mouseinfo1	db 4,0
+mouseinfo1	db 2,0			; serial
 ;	end_
 @@h2anz:
 
@@ -2094,14 +2267,28 @@ endif
 ressize_marker	db 'RESSZ'		; read by tools/ressize.py
 		dw TSRend-TSRstart	; resident bytes (PSP included)
 		dw LIMIT
+		dw TSRdata-TSRstart	; must not be below TSRavail
+		dw TSRavail-TSRstart
 
 options		dw 0
-OPT_serial	equ	   10b
 OPT_3button	equ	10000b
 if USE_MSYS
 OPT_MSYS	equ    100000b
 endif
 OPT_lefthand	equ   1000000b
+
+h33class	db 0			; 0=no INT 33h driver, 1=unknown handler
+tstart		dw 0			; detection timer: start, 1/100 s
+tlimit		dw 0			;  in the minute; timeout, 1/100 s;
+tcap		dw 0			;  iteration cap (DOS clock may stop)
+
+WRinit		db 4,WR4_VAL		; WR4: x16 clock, 1 stop bit, no parity
+		db 3			; WR3: Rx 7 bits (8 with /M),
+WR3init		db WR3_VAL		;  Rx enable, no auto enables
+		db 5,WR5_RTSOFF		; WR5: DTR, Tx 8 bits, Tx enable, RTS off
+		db WR0_RESEXT		; WR0: reset ext/status interrupts
+		db 1,0			; WR1: no interrupts (polled detection)
+szWRinit = $ - WRinit
 
 
 ;============================== REAL START ==============================
@@ -2118,7 +2305,7 @@ real_start:	cld
 		DOSGetIntr 33h
 		saveFAR [oldint33],es,bx	; save old INT 33h handler
 
-;----- parse command line and find mouse
+;----- parse command line
 
 		say	@data:Copyright		; 'Cute Mouse Driver'
 		mov	si,offset PSP:cmdline_len
@@ -2126,58 +2313,98 @@ real_start:	cld
 		cbw				; OPTIMIZE: instead MOV AH,0
 		mov	bx,ax
 		mov	[si+bx],ah		; OPTIMIZE: AH instead 0
-		call	commandline		; examine command line
+		call	commandline		; examine command line (/U, /? exit)
+		mov	di,dataref:Syntax	; no port: usage screen, exit 1
+		cmp	[v9kport],1
+		ja	@@exitmsg
 
-		mov	al,1Fh			; disable old driver
-		call	mousedrv
-
-;-----
-
-		call	detectmouse		; PHASE2: 7201 init + detection
-		jnc	@@serialfound
-		mov	di,dataref:E_notfound	; 'Error: device not found'
-		jmp	EXITENABLE
-
-;-----
-
-@@serialfound:	mov	al,2
-		mov	mouseinfo[1],al
-		mov	[mouseinfo1],al
-		mov	[mousetype],bl
-
-;----- check if CuteMouse driver already installed
+;----- classify INT 33h: never call a stray vector
 
 		call	getCuteMouse
-		mov	di,dataref:S_reset	; 'Resident part reset to'
-		mov	cx,4C02h		; terminate, al=return code
+		je	@@reload		; jump if our driver (in ES)
+		mov	di,dataref:E_mousedev	; 'MOUSE' driver, not ours: exit 1
+		cmp	bl,2
+		je	@@exitmsg
+		mov	[h33class],bl
 
-;	if_ ne
-	jz @@mfz
+;----- transaction 1: fresh install
+
+		DOSGetIntr 41h
+		saveFAR [oldIRQaddr],es,bx	; handed back by disable7201
+		mov	ax,IO_SEG
+		mov	es,ax
+		mov	al,es:[PIC_IMR]		; 8259 IMR (bit 1 = IR1)
+		mov	[oldIMR],al
+		call	detectmouse
+		jc	@@nomouse
+		mov	[mousetype],bl
+
+		cmp	[h33class],1
+;	if_ eq					; if unknown INT 33h handler
+	jne @@noreplace
+		say	@data:S_replace		; 'it will be replaced'
+;	end_
+@@noreplace:
 
 ;----- set INT 33 handler (the TSR stays in place)
 
-@@newTSR:	mov	bx,(TSRend-TSRstart+15)/16
+		mov	bx,(TSRend-TSRstart+15)/16
 		push	bx
 		call	prepareTSR		; memory segment in ES
-		memcopy	<size oldint33>,es,,@TSRdata:oldint33,ds,,@TSRdata:oldint33
 		push	ds
 		MOVSEG	ds,es,,@TSRcode
 		mov	[disabled?],1		; copied back in setupdriver
 		DOSSetIntr 33h,,,@TSRcode:handler33
 		POPSEG	ds,@data
 		pop	ax
-		mov	di,dataref:S_installed	; 'Installed at'
+		mov	di,dataref:S_installed	; 'Installed at '
 		mov	cl,0			; errorlevel
-;	end_ if
-@@mfz:
+		j	@@setup
+
+@@nomouse:	mov	di,dataref:E_nomouse	; 'No mouse detected...': exit 2
+@@exitmsg:	jmp	EXITMSG
+
+;----- transaction 2: reload over our resident driver (in ES)
+
+@@reload:	mov	al,es:[v9kport]
+		cmp	al,[v9kport]
+		jne	@@otherport
+						; same port: the resident driver
+						;  proved the mouse, no init and
+						;  no detection; its type is read
+						;  back from its patched code
+if USE_MSYS
+		mov	bl,1
+		cmp	word ptr es:[mouseproc],MSMproc-mouseproc-2
+		je	@@gottype		; Mouse Systems
+endif
+		mov	bl,3
+		cmp	byte ptr es:[MSLTCODE3],0C3h
+		je	@@gottype		; RET: Microsoft
+		dec	bx
+		cmp	byte ptr es:[MSLTCODE3+1],3
+		je	@@gottype		; "mov cl,3": Logitech
+		mov	bl,83h			; "mov cl,2": Microsoft+wheel
+		j	@@gottype
+
+@@otherport:	push	es			; init and detect on the new
+		call	detectmouse		;  channel only, the old driver
+		pop	es			;  keeps running on its own
+		jc	@@nomouse
+@@gottype:	mov	[mousetype],bl
+		mov	di,dataref:S_reset	; 'Resident part reset to '
+		mov	cx,4C00h		; terminate, errorlevel 0
 
 ;-----
 
-		push	ax			; size of TSR for INT 21/31
-;		say	di
-		call    sayASCIIZ
+@@setup:	push	ax			; size of TSR for INT 21/31
+		push	cx			; exit function and errorlevel
+		push	di
+		call	setupdriver		; reload: fn 1Fh first (may exit)
+		pop	di
+		call	sayASCIIZ		; 'Installed at '/'Resident part...'
+		say	@data:S_atport		; 'serial port X in '
 		mov	al,[mousetype]
-
 		mov	bx,dataref:S_CRLF
 		add	al,al
 ;	if_ carry				; if wheel (=8xh)
@@ -2185,28 +2412,14 @@ real_start:	cld
 		mov	bx,dataref:S_wheel
 ;	end_
 @@mfnc:
-
 		cbw				; OPTIMIZE: instead MOV AH,0
-if USE_MSYS
-		cmp	al,1 shl 1
-endif
 		xchg	si,ax			; OPTIMIZE: instead MOV SI,AX
-if USE_MSYS
-;	if_ eq					; if Mouse Systems (=1)
-	jnz @@mfnz
-		inc	cx			; OPTIMIZE: CX instead CL
-;	end_
-@@mfnz:
-endif
-		say	@data:S_atCOM		; PHASE2: name the 7201 channel
-		push	cx			; exit function and errorlevel
 ;		say	S_mousetype[si]
 		mov	di, S_mousetype[si]
 		call	sayASCIIZ
 ;		say	bx
 		mov	di,bx
 		call    sayASCIIZ
-		call	setupdriver
 
 ;----- close all handles (20 pieces) to prevent decreasing system
 ;	pool of handles if INT 21/31 used
@@ -2230,7 +2443,11 @@ endif
 ;========================================================================
 ;		Setup resident driver code and parameters
 ;========================================================================
-
+;
+; In:	ES			(driver segment, ES=DS for a fresh install)
+; Out:	none			(exits with errorlevel 2 if the resident
+;				 driver refuses fn 1Fh)
+;
 setupdriver	proc
 
 ;----- setup left hand mode handling
@@ -2277,9 +2494,8 @@ endif ; USE_WHEEL
 ;----- setup mouse handlers code
 
 ;	block_
-		; PHASE2: patch in enable7201/disable7201
-		fixnear	enableproc,enableUART
-		fixnear	disableproc,disableUART
+		fixnear	enableproc,enable7201
+		fixnear	disableproc,disable7201
 		dec	cx
 if USE_MSYS
 ;	 breakif_ zero				; break if Mouse Systems mode (=1)
@@ -2308,9 +2524,44 @@ endif ; USE_MSYS
 
 ;----- setup, if required, other parameters
 
-@@setother:	mov	al,es:[disabled?]	; get back [disabled?]
+@@setother:
+if CHAIN41
+		push	es			; chain the old INT 41h only if
+		mov	dx,es			;  it is non-null, outside the
+		les	si,es:[oldIRQaddr]	;  driver and not a bare IRET
+		assume	es:nothing
+		mov	cl,0
+		mov	ax,es
+		or	ax,si
+		jz	@@nochain
+		mov	ax,es
+		cmp	ax,dx
+		je	@@nochain
+		cmp	byte ptr es:[si],0CFh	; IRET
+		je	@@nochain
+		inc	cx
+@@nochain:	pop	es
+		mov	[chain_ok],cl
+endif ; CHAIN41
+
+;----- reload: disable the resident driver immediately before the copy
+
+		mov	ax,es
+		mov	cx,ds
+		cmp	ax,cx
+;	if_ ne					; if driver already resident
+	je @@fresh
+		push	es
+		mov	al,1Fh			; ownership checked first: on a
+		call	mousedrv		;  refusal nothing was changed
+		pop	es
+		cmp	al,1Fh
+		mov	di,dataref:E_noreload	; 'reload refused': exit 2
+		jne	@@refused
+;	end_
+@@fresh:
+		mov	al,es:[disabled?]	; get back [disabled?]
 		mov	[disabled?],al
-; PHASE2: save the old INT 41h vector into oldIRQaddr
 
 ;----- copy TSR image (even if ES=DS - this is admissible)
 
@@ -2328,48 +2579,228 @@ endif ; USE_MSYS
 		xor	ax,ax			; reset driver
 		nop				; -X-
 		retf				; jump to relocated INT33
+
+@@refused:	jmp	EXITMSG
 setupdriver	endp
 
 ;========================================================================
-;			Detect mouse type if present
+;		Initialise the 7201 channel and detect the mouse
 ;========================================================================
 ;
-; In:	none
-; Out:	Carry flag		(no mouse found)
-;	BX			(mouse type: 2=Logitech,3=MS,83h=MS+wheel)
-; Use:	none
-; Modf:	none
-; Call:	none
+; In:	IOctrl, v9kport		(channel, set by the command line)
+; Out:	Carry flag		(no mouse found; channel reset, RTS off)
+;	BL			(mouse type: 2=Logitech,3=MS,83h=MS+wheel)
+; Use:	WRinit, options
+; Modf:	AX, CX, DX, BX, SI, DI, ES, tstart, tlimit, tcap
+; Call:	starttimer, pollrx
 ;
 detectmouse	proc
-; PHASE2: 7201 init (plan 3.2) and bounded 'M'/'3'/'Z' detection (5.2)
-		stc				; no mouse found
+if USE_MSYS
+		test	byte ptr [options],OPT_MSYS
+;	if_ nz					; Mouse Systems: 8N1
+	jz @@dm7bits
+		mov	[WR3init],WR3_VAL8
+;	end_
+@@dm7bits:
+endif
+		mov	ax,IO_SEG
+		mov	es,ax
+		mov	bx,[IOctrl]		; SIO_CTRL_A/B of our channel
+		mov	al,[v9kport]
+		cbw
+		xchg	di,ax			; DI=0/1: 8253 counter offset
+
+;----- program the channel (polled, IF=0 around the pointer pairs)
+
+		cli
+		mov	al,es:[bx]		; RR0: two dummy reads reset a
+		mov	al,es:[bx]		;  pointer left set by somebody
+		mov	byte ptr es:[bx],WR0_CHRESET ; WR0: reset our channel only
+		mov	ax,di
+		mov	cl,6
+		shl	al,cl
+		or	al,36h			; 8253: counter 0 (36h) or 1 (76h),
+		mov	es:[PIT_CTRL],al	;  LSB+MSB, mode 3, binary
+		mov	byte ptr es:[di+PIT_CNT0],BAUD_COUNT and 0FFh ; count LSB
+		mov	byte ptr es:[di+PIT_CNT0],BAUD_COUNT shr 8 ; count MSB
+		mov	byte ptr es:[SIO_CTRL_A],2 ; WR0A: pointer 2
+		mov	byte ptr es:[SIO_CTRL_A],WR2A_VAL ; WR2A (both channels)
+		mov	si,dataref:WRinit
+		mov	cx,szWRinit
+;	countloop_
+@@wrloop:	lodsb				; WR4, WR3, WR5 (RTS off), WR0, WR1
+		mov	es:[bx],al		; pointer/value pairs on our port
+		loop	@@wrloop
+		sti
+
+;----- hold RTS off for 300 ms (mouse unpowered), drain the receiver
+
+		mov	ax,30
+		call	starttimer
+;	loop_
+@@drain:	call	pollrx
+;	until_ carry
+	jnc @@drain
+		cli
+		mov	byte ptr es:[bx],5	; WR0: pointer 5
+		mov	byte ptr es:[bx],WR5_RTSON ; WR5: RTS on, the mouse powers up
+		sti
+
+;----- detect if Microsoft or Logitech mouse present
+
+		mov	dx,0103h		; DL=mouse type, DH=1: no traffic
+		mov	ax,200			; 2.0 s for the first byte
+;	countloop_ 4,cx				; scan 4 first bytes
+	mov cx,4
+@@detloop:	call	starttimer
+		call	pollrx
+		jc	@@detdone		; timeout: no (more) data
+		mov	dh,0			; any traffic counts as a mouse
+		cmp	al,'('-20h
+;	 breakif_ eq				; break if PnP data starts
+	jz @@detdone
+		cmp	al,'Z'			; PnP: wheel?
+;	 if_ eq
+	jnz @@prsnz2
+		mov	dl,83h			; ...MS mouse+wheel found
+;	 end_
+@@prsnz2:
+		cmp	al,'3'			; PnP: logitech?
+;	 if_ eq
+	jnz @@prsnz3
+		mov	dl,2			; ...Logitech mouse found
+;	 end_
+@@prsnz3:
+		mov	ax,20			; then 0.2 s of silence ends it
+;	end_ countloop
+	loop @@detloop
+@@detdone:
+
+if USE_MSYS
+		test	byte ptr [options],OPT_MSYS
+;	if_ nz					; Mouse Systems sends no PnP ID
+	jz @@dmnotmsys
+		mov	dx,1
+;	end_
+@@dmnotmsys:
+endif
+		shr	dh,1			; 1 makes carry flag
+;	if_ carry				; if nothing received
+	jnc @@detfound
+		mov	byte ptr es:[bx],WR0_CHRESET ; WR0: channel reset (WR1 is
+;	end_					;  already 0): RTS off, port quiet
+@@detfound:
+		mov	bl,dl			; keeps CF
 		ret
 detectmouse	endp
+
+;========================================================================
+; In:	AX			(timeout, 1/100 s)
+; Out:	none
+; Modf:	AX, tstart, tlimit, tcap
+; Call:	gettime
+;
+starttimer	proc
+		mov	[tlimit],ax
+		mov	[tcap],0		; 65536 polls at most
+		call	gettime
+		mov	[tstart],ax
+		ret
+starttimer	endp
+
+;========================================================================
+; In:	ES:BX			(SIO_CTRL_A/B)
+; Out:	Carry flag		(timeout)
+;	AL			(received byte if no carry)
+; Modf:	AX, tcap
+; Call:	gettime
+;
+pollrx		proc
+;	loop_					; time is checked even while
+@@pollloop:	dec	[tcap]			;  bytes arrive: a babbling line
+		jz	@@polltimeout		;  cannot stall the drain
+		call	gettime
+		sub	ax,[tstart]
+;	 if_ carry				; the minute (or hour, or
+	jnc @@pollnc
+		add	ax,60*100		;  midnight) wrapped
+;	 end_
+@@pollnc:
+		cmp	ax,[tlimit]
+		jae	@@polltimeout
+		test	byte ptr es:[bx],RR0_RXAVAIL ; RR0 bit 0: Rx char available?
+;	until_ nz
+	jz @@pollloop
+		mov	al,es:[bx-2]		; SIO_DATA_A/B (CF=0 from TEST)
+		ret
+@@polltimeout:	stc
+		ret
+pollrx		endp
+
+;========================================================================
+; Out:	AX			(time in the current minute, 1/100 s)
+; Modf:	none
+; Call:	INT 21/2C
+;
+gettime		proc
+		push	cx
+		push	dx
+		mov	ah,2Ch
+		int	21h			; DH=seconds, DL=1/100 seconds
+		mov	al,100
+		mul	dh
+		mov	dh,0
+		add	ax,dx
+		pop	dx
+		pop	cx
+		ret
+gettime		endp
 
 ;========================================================================
 ;		Check if CuteMouse driver is installed
 ;========================================================================
 ;
-; In:	none
-; Out:	Zero flag		(ZF=1 if installed)
+; In:	oldint33		(current INT 33h vector)
+; Out:	Zero flag		(ZF=1 if our driver with this exact layout)
+;	BL			(0=no driver: null or offset<5,
+;				 1=unknown handler: no 'MOUSE' signature,
+;				 2=other 'MOUSE' driver, 3=ours)
 ;	ES			(driver segment)
 ; Use:	IDstring
 ; Modf:	AX, CX, SI, DI
 ; Call:	mousedrv
 ;
 getCuteMouse	proc
+		xor	bx,bx			; no driver
+		les	di,[oldint33]
+		assume	es:nothing
+		cmp	di,5
+		jb	@@gcmret		; null vector or offset < 5
+		inc	bx			; unknown handler: never call it
+		sub	di,5
+		mov	si,TSRcref:handler33-5	; our own 'MOUSE' signature
+		mov	cx,5
+		repe	cmpsb
+		jne	@@gcmret
+		inc	bx			; 'MOUSE' driver
 		xor	di,di
+		mov	es,di			; ES:DI=0 preset for fn 4Dh
 		mov	al,4Dh			; get copyright string
+		push	bx
 		call	mousedrv
+		pop	bx
 		mov	si,TSRcref:IDstring
 		cmp	di,si
-;	if_ eq
-	jnz @@gcmnz
+;	if_ eq					; exact layout: same offset
+	jnz @@gcmret
 		mov	cx,szIDstring
 		repe	cmpsb
+;	 if_ eq
+	jnz @@gcmret
+		inc	bx			; ours
+;	 end_
 ;	end_
-@@gcmnz:
+@@gcmret:	cmp	bl,3
 		ret
 getCuteMouse	endp
 
@@ -2381,7 +2812,7 @@ getCuteMouse	endp
 ; Out:	results of INT 33h, if driver installed
 ; Use:	oldint33
 ; Modf:	AH
-; Call:	INT 33
+; Call:	INT 33		(only a vector classified by getCuteMouse)
 ;
 mousedrv	proc
 		mov	cx,word ptr oldint33[2]
@@ -2399,20 +2830,22 @@ mousedrv	endp
 ;========================= COMMAND LINE PARSING =========================
 
 ;========================================================================
-;			Parse Serial option
+;		Parse Serial option: /SA, /SB (7201 channel A/B)
 ;========================================================================
 
 _serialopt	proc
-; PHASE2: becomes /SA /SB (7201 channel); the digits are parsed and ignored
-		mov	bx,(4 shl 8)+1
-		call	parsedigit
-;	if_ nc					; '/Sc'
-	jc @@soc
-		;mov	bl,1
-		mov	bh,7
-		call	parsedigit		; '/Sci'
-;	end_
-@@soc:
+		lodsb
+@setport::	and	al,not 20h		; uppercase
+		sub	al,'A'
+		cmp	al,1
+		mov	cx,dataref:E_argument	; 'Error: Invalid argument'
+		ja	BADOPTION		; only A or B
+		mov	[v9kport],al		; 0=A, 1=B
+		add	al,SIO_CTRL_A
+		mov	byte ptr [IOctrl],al	; SIO_CTRL_A/B for the ISR
+		add	al,'A'-SIO_CTRL_A
+		mov	[S_port],al		; port letter in the messages
+		mov	[E_port],al
 		ret
 _serialopt	endp
 
@@ -2486,7 +2919,7 @@ cmOPTION	struc	; OPTION is a reserved word in some MASM / TASM
   optproc@	dw ?
 cmOPTION ends
 
-OPTABLE		cmOPTION <'S',OPT_serial,			_serialopt>
+OPTABLE		cmOPTION <'S',,				_serialopt>
 		cmOPTION <'3' and not 20h,OPT_3button,	@ret>
 		cmOPTION <'R',,				_resolution>
 		cmOPTION <'L',OPT_lefthand,		@ret>
@@ -2535,10 +2968,13 @@ commandline	proc
 		cmp	bx,dataref:OPTABLEend
 ;	 until_ ae
 	jb @@cloloop
+		j	@@badopt
 ;	end_ if
 @@clnz:
+		call	@setport		; bare A or B word
+		j	commandline
 
-		mov	cx,dataref:E_option	; 'Error: Invalid option'
+@@badopt:	mov	cx,dataref:E_option	; 'Error: Invalid option'
 BADOPTION::	say	@data:E_error		; 'Error: Invalid '
 ;		say	cx			; 'option'/'argument'
 		mov	di,cx
@@ -2582,21 +3018,19 @@ sayASCIIZ_	endp
 ;========================================================================
 
 unloadTSR	proc
-		call	getCuteMouse		; check if CTMOUSE installed
+		call	getCuteMouse		; check if CTMV9K installed
 		mov	di,dataref:E_nocute	; 'CuteMouse driver is not installed!'
 		jne	EXITMSG
 
 		push	es
 		mov	al,1Fh			; disable CuteMouse driver
-		call	mousedrv
+		call	mousedrv		;  (ownership checked first)
 		mov	cx,es
 		pop	es
 
 		cmp	al,1Fh
 		mov	di,dataref:E_notunload	; 'Driver unload failed...'
-;	if_ eq
-	jnz @@unlnz
-		saveFAR	[oldint33],cx,bx
+		jne	EXITMSG			; refused: nothing was changed
 		push	ds
 ;		DOSSetIntr 33h,cx,,bx		; restore old int33 handler
 		mov	dx,bx
@@ -2604,13 +3038,12 @@ unloadTSR	proc
 		mov	ds,cx
 		int	21h
 		pop	ds
+		mov	bx,es:[IOctrl]		; channel of the resident driver
 		call	FreeMem
+		mov	ax,IO_SEG
+		mov	es,ax
+		mov	byte ptr es:[bx],WR0_CHRESET ; WR0: channel reset, RTS off
 		mov	di,dataref:S_unloaded	; 'Driver successfully unloaded...'
-;	end_
-@@unlnz:
-
-EXITENABLE::	mov	al,20h			; enable old/current driver
-		call	mousedrv
 		j	EXITMSG
 unloadTSR	endp
 

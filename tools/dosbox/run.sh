@@ -41,7 +41,7 @@ bad() { echo "FAIL $1"; fail=1; }
 chk() { if echo "$OUT" | grep -q -- "$1"; then ok "$2"; else bad "$2"; fi; }
 # field N ("INT33", "INT41", "IMR", "free", "rc") logged after run R
 f() { echo "$OUT" | grep "^#$1 " | sed -n "s/.*$2=\([0-9A-F:]*\).*/\1/p" | tail -1; }
-sig() { echo "$OUT" | grep "^#$1 INT33=" | cut -c 19-23; }
+sig() { echo "$OUT" | grep "^#$1 INT33=" | cut -c 20-24; }
 eq() { if [ -n "$1" ] && [ "$1" = "$2" ]; then ok "$3"; else bad "$3 ('$1' vs '$2')"; fi; }
 ne() { if [ -n "$1" ] && [ "$1" != "$2" ]; then ok "$3"; else bad "$3 (both '$1')"; fi; }
 
