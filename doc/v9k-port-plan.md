@@ -484,7 +484,7 @@ INT 2Fh, INT 10h, INT 15h.
 
 MOUSE.DEV is 3104 bytes without a PSP and MOUSE.COM 3360 with one. Phase 2 assembles the hardware
 layer and records **actual** sizes. The renderer estimate is revised from those numbers before
-phase 4 starts. Size reporting and gate: `ctmv9k.asm` stores a `RESSZ` marker (`dw TSRend-TSRstart`,
+phase 4 starts. Size reporting and gate: `ctmousev.asm` stores a `RESSZ` marker (`dw TSRend-TSRstart`,
 `dw LIMIT`) in its transient data and `tools/ressize.py` (run by `make v9k`) reads it from the built
 `.bin` and fails above `LIMIT`. (Phase 0 finding: the assembler's `if`/`%echo` see pass-1 addresses,
 3108, while the final size is 3134, so a source-level gate is unreliable.) `LIMIT` = 0C40h in
@@ -500,8 +500,8 @@ V9KFLAGS=-c -bin -0          # independent of ASFLAGS, the V9K build is 8086-onl
 
 v9k: ctmousev.exe
 
-ctmousev.exe: ctmv9k-en.msg ctmv9k.asm bin2exe
-	$(AS) $(V9KFLAGS) -D\?LANG=ctmv9k-en -Foctmousev.bin ctmv9k.asm
+ctmousev.exe: ctmousev-en.msg ctmousev.asm bin2exe
+	$(AS) $(V9KFLAGS) -D\?LANG=ctmousev-en -Foctmousev.bin ctmousev.asm
 	./bin2exe -s 512 ctmousev.bin ctmousev.exe
 
 PC_BASE=1d93f1e              # pinned baseline commit, not HEAD
@@ -514,8 +514,8 @@ verify-pc: ctmouse.exe        # PC build must stay byte-identical to the pinned 
 The recipe must fail when `cmp` fails. A trailing `; rm` would mask its status.
 
 - `clean`: add `ctmousev.exe`. `alllang` and the `%.exe` pattern rule stay as they are. The explicit
-  rule wins for `ctmousev.exe`, and nobody should ask for `ctmv9k-en.exe`.
-- `ctmv9k-en.msg`: same `%include ?LANG.msg` mechanism and macros, with its own labels (banner,
+  rule wins for `ctmousev.exe`, and nobody should ask for `ctmousev-en.exe`.
+- `ctmousev-en.msg`: same `%include ?LANG.msg` mechanism and macros, with its own labels (banner,
   `Syntax`, errors, `E_mousedev`, `E_nomouse`, `S_port`, `S_inMS`/`S_inLT`, ...). `S_wheel` stays. The PS/2, COM
   and VGA strings go. English only at first.
 - `ctmousev.bin` is already a valid .COM image (`org 100h`). Ship the .EXE for consistency, and
@@ -612,7 +612,7 @@ commit message.
 
 | Phase | Work | Ends with |
 |---|---|---|
-| 0 | Fork `ctmouse.asm` → `ctmv9k.asm`, `ctm-en.msg` → `ctmv9k-en.msg`, Makefile targets, size marker + `tools/ressize.py` gate, `LIMIT` = 0C40h | identical driver under a new name; resident 3134 (done, c9000ee) |
+| 0 | Fork `ctmouse.asm` → `ctmousev.asm`, `ctm-en.msg` → `ctmousev-en.msg`, Makefile targets, size marker + `tools/ressize.py` gate, `LIMIT` = 0C40h | identical driver under a new name; resident 3134 (done, c9000ee) |
 | 1 (done, e8c926b, resident 1838) | Strip: PS/2, INT 10h/RIL, USE28, PS2DEBUG, USE_286, UMB/XMS, COM search/UART probe, `setCOMport`/`setIRQ`; `USE_MSYS` (0) / `USE_WHEEL` (1); video stubbed (`videoseg` = 0); BIOS reads gone; `LIMIT` → 0C20h | assembles; no `in`/`out`, no `int 1[015]h` left; size recorded |
 | 2 (done, 9e8fc38 + fixes 11a37b4/4c32f1b, resident 2128 before video) | Hardware layer with `CHAIN41` = 0: equates, ISR with drain loop and error reset, account/notify split, `enable7201`/`disable7201`, ownership-first fn 1Fh, pointer discipline, init + bounded detection, install/reload transactions, fixed `/U`, `/SA /SB`, `'MOUSE'`, fn 24h DX, range clamps, messages, `v9kmt.com`, `v9kmouse.py`, DOSBox harness | DOSBox tests; MAME 1-4, 9-11, 13-15 (no cursor); **actual sizes recorded, renderer budget revised** |
 | 3 | INT 41h sharing: `CHAIN41` = 1, `chain_ok`, conditional IMR restore; trace the 8259 ICW1 in the MAME debugger | MAME 16 with **PORTA.EXE**/PORTB.EXE from the DOS 2.11 disk as the fixture; keep the switch off by default if it fails |
@@ -649,7 +649,7 @@ commit message.
 | CRTC R12/R13 read semantics (HD46505 variant) | wrong mode/start | MOUSE.DEV already depends on it on real hardware |
 | Graphics layouts other than PICASSO's | no cursor, or a false positive of the heuristic | layout check (4.1) turns the cursor off; document |
 | Renderer larger than 300 bytes | size over target | phase 2 measurements; the 0C20h gate stays hard |
-| Fork drift from upstream CuteMouse fixes | maintenance | keep banner names, order and labels so `diff ctmouse.asm ctmv9k.asm` stays readable |
+| Fork drift from upstream CuteMouse fixes | maintenance | keep banner names, order and labels so `diff ctmouse.asm ctmousev.asm` stays readable |
 | Mouse needs more than 300 ms RTS-off | no `'M'` | the delay is a constant; any later traffic still counts as detection |
 
 ## 12. Decisions

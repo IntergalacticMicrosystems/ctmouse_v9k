@@ -1,11 +1,11 @@
 # tools/video: DOSBox test of the V9K video layer
 
-`ctmv9k-video.inc` (repo root) is the Victor 9000 video layer from plan sections 4.1-4.5:
+`ctmousev-video.inc` (repo root) is the Victor 9000 video layer from plan sections 4.1-4.5:
 `drawcursor`, `restorescreen`, `checkifseen` (pixel units), `v9k_gcursor` / `v9k_grestore`
 (the strip renderer), `v9k_txtaddr` (text cell address, replaces `gettxtoffset`),
 `v9k_getrid` (render target id, used by MODEGUARD), `v9k_detect_mode`, and the macros
 `V9K_UDATA`, `V9K_DEFMASKS`, `V9K_GRANX` and `V9K_MIRRORCOPY`. The header of the include lists
-the glue that `ctmv9k.asm` needs.
+the glue that `ctmousev.asm` needs.
 
 ## Run
 
@@ -14,7 +14,7 @@ tools/video/check.py [--workdir DIR] [--no-run] [--seed N] [--inc DIR]
 ```
 
 Needs `jwasm`, `dosbox` and python3. It builds `VTEST.COM` from `vtest.asm` (which includes the
-real `ctmv9k-video.inc` with `V9K_TESTCRTC`, so R12:R13 come from a variable, and with
+real `ctmousev-video.inc` with `V9K_TESTCRTC`, so R12:R13 come from a variable, and with
 `V9K_SCRSEG` pointing at fake screen RAM), writes the test matrix to `CMDS.BIN`, and runs
 DOSBox headless (`SDL_VIDEODRIVER=dummy`, `TEST.BAT` = `VTEST` + `EXIT`). Then it replays the
 same commands on a Python model of the routines and compares every dump in `OUT.BIN` (about

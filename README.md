@@ -3,7 +3,7 @@ Work on a port to Victor 9000 DOS and hardware
 
 ## CTMOUSEV: CuteMouse for the Victor 9000 / Sirius 1
 
-`make v9k` builds `ctmousev.exe` from `ctmv9k.asm`, `ctmv9k-video.inc` and `ctmv9k-en.msg`. It is a
+`make v9k` builds `ctmousev.exe` from `ctmousev.asm`, `ctmousev-video.inc` and `ctmousev-en.msg`. It is a
 CuteMouse 2.1b4 derivative for the Victor 9000's own hardware (uPD7201 serial, 8259 at E000:0000,
 HD46505 CRTC, 800x400 column-major bitmap) and needs only an 8088 and MS-DOS 2.0+. The design is in
 `doc/v9k-port-plan.md`.

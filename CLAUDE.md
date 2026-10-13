@@ -18,7 +18,7 @@ at `/opt/watcom/binl64`; `nasm` and `dosbox` are also installed.
 
 ```sh
 make              # builds bin2exe, then ctmouse.exe (English messages)
-make v9k          # ctmousev.exe, the Victor 9000 driver (ctmv9k.asm + ctmv9k-en.msg)
+make v9k          # ctmousev.exe, the Victor 9000 driver (ctmousev.asm + ctmousev-en.msg)
 make verify-pc    # PC build must be byte-identical to the pinned PC_BASE commit (gate for every V9K change)
 make alllang      # ctm-<lang>.exe for every ctm-*.msg
 make clean        # removes .bin/.exe intermediates (keeps bin2exe)
@@ -81,10 +81,10 @@ reading caller registers must use those equates, never literal offsets.
 
 ## Victor 9000 port
 
-The port is a fork: `ctmv9k.asm` + `ctmv9k-en.msg` build `ctmousev.exe`; `ctmouse.asm`, `ctm-*.msg`
+The port is a fork: `ctmousev.asm` + `ctmousev-en.msg` build `ctmousev.exe`; `ctmouse.asm`, `ctm-*.msg`
 and `asmlib/` are never edited (`make verify-pc`). The design, hardware map, dispositions of every
 section of `ctmouse.asm`, phases and test plan are in `doc/v9k-port-plan.md`; read it before
-changing `ctmv9k.asm`. Hardware references live outside the repo in
+changing `ctmousev.asm`. Hardware references live outside the repo in
 `/root/sync/Victor9000-Software/mouse/` (annotated MOUSE.DEV disassembly) and the MAME source.
 Keep section banners, label names and ordering aligned with `ctmouse.asm` so the two files diff
 readably.

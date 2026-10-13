@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check.py - DOSBox test of ctmv9k-video.inc against the tools/v9kmouse.py cursor oracle.
+"""check.py - DOSBox test of ctmousev-video.inc against the tools/v9kmouse.py cursor oracle.
 
   tools/video/check.py [--workdir DIR] [--no-run]
 
@@ -439,10 +439,10 @@ def run_dosbox(work, cmds, inc=REPO):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--workdir', default=os.environ.get('TMPDIR', '/tmp') + '/ctmv9k_video_test')
+    ap.add_argument('--workdir', default=os.environ.get('TMPDIR', '/tmp') + '/ctmousev_video_test')
     ap.add_argument('--no-run', action='store_true', help='only check an existing OUT.BIN')
     ap.add_argument('--seed', type=int, default=9)
-    ap.add_argument('--inc', default=REPO, help='directory holding ctmv9k-video.inc (mutation tests)')
+    ap.add_argument('--inc', default=REPO, help='directory holding ctmousev-video.inc (mutation tests)')
     args = ap.parse_args()
     os.makedirs(args.workdir, exist_ok=True)
     cmds = build(random.Random(args.seed))

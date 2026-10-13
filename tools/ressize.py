@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Report and gate the resident size and data layout of a CuteMouse V9K build.
 
-Reads the 'RESSZ' marker that ctmv9k.asm places in its transient data:
+Reads the 'RESSZ' marker that ctmousev.asm places in its transient data:
   dw TSRend-TSRstart   resident bytes (PSP included)
   dw LIMIT             hard ceiling
   dw TSRdata-TSRstart  start of initialized data

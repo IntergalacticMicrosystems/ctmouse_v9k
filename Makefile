@@ -19,7 +19,7 @@ ASFLAGS=-c -bin -0
 # Uncomment this to build for 286 and better
 # ASFLAGS=-c -bin -2
 
-# The Victor 9000 build (ctmv9k.asm) is 8086-only and independent of ASFLAGS.
+# The Victor 9000 build (ctmousev.asm) is 8086-only and independent of ASFLAGS.
 # `make v9k-chain41` builds the experimental INT 41h sharing variant (-DCHAIN41=1)
 # as ctmousev-chain41.exe, a separate target so the two configurations never alias.
 V9KFLAGS=-c -bin -0
@@ -33,15 +33,15 @@ all: ctmouse.exe
 
 v9k: ctmousev.exe
 
-ctmousev.exe: ctmv9k-en.msg ctmv9k.asm ctmv9k-video.inc bin2exe
-	$(AS) $(V9KFLAGS) -D\?LANG=ctmv9k-en -Foctmousev.bin ctmv9k.asm
+ctmousev.exe: ctmousev-en.msg ctmousev.asm ctmousev-video.inc bin2exe
+	$(AS) $(V9KFLAGS) -D\?LANG=ctmousev-en -Foctmousev.bin ctmousev.asm
 	python3 tools/ressize.py ctmousev.bin
 	./bin2exe -s 512 ctmousev.bin ctmousev.exe
 
 v9k-chain41: ctmousev-chain41.exe
 
-ctmousev-chain41.exe: ctmv9k-en.msg ctmv9k.asm ctmv9k-video.inc bin2exe
-	$(AS) $(V9KFLAGS) -DCHAIN41=1 -D\?LANG=ctmv9k-en -Foctmousev-chain41.bin ctmv9k.asm
+ctmousev-chain41.exe: ctmousev-en.msg ctmousev.asm ctmousev-video.inc bin2exe
+	$(AS) $(V9KFLAGS) -DCHAIN41=1 -D\?LANG=ctmousev-en -Foctmousev-chain41.bin ctmousev.asm
 	python3 tools/ressize.py ctmousev-chain41.bin
 	./bin2exe -s 512 ctmousev-chain41.bin ctmousev-chain41.exe
 

@@ -1,4 +1,4 @@
-; ctmv9k-video.inc - Victor 9000 video layer for CTMOUSEV (plan sections 4.1-4.5)
+; ctmousev-video.inc - Victor 9000 video layer for CTMOUSEV (plan sections 4.1-4.5)
 ;
 ; JWasm, 8086 only, resident code. Part of the CuteMouse port, GPL-2.
 ; Tested in DOSBox against the Python oracle (tools/video/, tools/v9kmouse.py).
@@ -10,9 +10,9 @@
 ;                  include in the resident code where drawcursor .. checkifseen were.
 ;
 ;------------------------------------------------------------------------------------------------
-; Glue for ctmv9k.asm
+; Glue for ctmousev.asm
 ;------------------------------------------------------------------------------------------------
-;  1. Top (after POINT struc):       V9K_PART = 1  /  include ctmv9k-video.inc
+;  1. Top (after POINT struc):       V9K_PART = 1  /  include ctmousev-video.inc
 ;  2. Uninitialized data, right after spritebuf (which must be 4*16 bytes, PSP 1Eh-5Dh):
 ;                                    V9K_UDATA
 ;     New resident variables (all uninitialized, 9 bytes, then `even` if wanted):
@@ -29,7 +29,7 @@
 ;     the startscan/endscan defaults 77FFh,7700h with  0FFFFh,8000h  (plan 4.4).
 ;  4. Delete drawcursor, restorescreen, graphcursor, gettxtoffset and checkifseen (and the
 ;     bitmapshift / cursorwidth code variables in checkifseen); put
-;                                    V9K_PART = 2  /  include ctmv9k-video.inc
+;                                    V9K_PART = 2  /  include ctmousev-video.inc
 ;     there. drawcursor / restorescreen / checkifseen keep their names and entry conditions
 ;     (drawcursor: no input, ES/AX/BX/CX/DX/SI/DI clobbered; restorescreen: same, ES =
 ;     videoseg on return; @drawret:: is still defined).
@@ -73,7 +73,7 @@
 ; [v9k_fakecrtc] (high byte R12); V9K_SCRSEG may be predefined (e.g. as <[fake_scrseg]>).
 
 ifndef V9K_PART
-.err <define V9K_PART = 1 or 2 before including ctmv9k-video.inc>
+.err <define V9K_PART = 1 or 2 before including ctmousev-video.inc>
 endif
 
 ;================================================================================================
@@ -86,7 +86,7 @@ ifndef HWCURSOR
 HWCURSOR	equ 0
 endif
 if HWCURSOR
-.err <ctmv9k-video.inc: HWCURSOR = 1 is not implemented (plan 4.4, decided off)>
+.err <ctmousev-video.inc: HWCURSOR = 1 is not implemented (plan 4.4, decided off)>
 endif
 
 V9K_IOSEG	equ 0E000h		; CRTC_ADDR = E000:8000, CRTC_DATA = E000:8001

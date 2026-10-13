@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Decode a CTMOUSEV resident dump (bytes from TSRstart, >= 100h long).
-Offsets from ctmv9k.asm: spritebuf 1Eh (64 bytes), V9K_UDATA at 5Eh (v9k_rid, gc_x, gc_y,
+Offsets from ctmousev.asm: spritebuf 1Eh (64 bytes), V9K_UDATA at 5Eh (v9k_rid, gc_x, gc_y,
 gc_rows, gc_lr, granx10), SaveArea 68h: mickey8, senscoeff, sensval, startscan, endscan,
 hotspot 78h, screenmask 7Ch, cursormask 9Ch, nocursorcnt BCh, rangemax BEh, upleft C2h,
 lowright C6h, pos CAh, granpos CEh."""

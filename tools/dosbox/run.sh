@@ -13,7 +13,7 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
 DRV=${1:-$REPO/ctmousev.exe}
-WORK=${TMPDIR:-/tmp}/ctmv9k_dosbox_test
+WORK=${TMPDIR:-/tmp}/ctmousev_dosbox_test
 [ -f "$DRV" ] || { echo "no driver $DRV (make v9k)"; exit 2; }
 rm -rf "$WORK"; mkdir -p "$WORK"
 nasm -f bin "$HERE/harness.asm" -o "$WORK/TEST.COM"

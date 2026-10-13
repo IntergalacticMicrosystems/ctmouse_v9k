@@ -61,7 +61,7 @@ include asmlib/dos/psp.def	; ** only DOS_exit env_seg cmdline_len PSP_TSR used
 include asmlib/dos/mem.mac
 
 if @CPU and 4
-.err <ctmv9k is an 8086 build>
+.err <ctmousev is an 8086 build>
 endif
 
 ;----- Victor 9000 hardware (all memory-mapped, offsets in segment IO_SEG)
@@ -137,7 +137,7 @@ POINT		struc
 POINT ends
 
 V9K_PART	= 1			; video layer: equates and macros
-include ctmv9k-video.inc
+include ctmousev-video.inc
 
 
 ;========================== SEGMENTS DEFINITION ==========================
@@ -864,7 +864,7 @@ updatebutton	endp
 
 
 V9K_PART	= 2			; video layer: drawcursor .. v9k_detect_mode
-include ctmv9k-video.inc
+include ctmousev-video.inc
 
 
 ;======================= INT 33 HANDLER SERVICES ========================

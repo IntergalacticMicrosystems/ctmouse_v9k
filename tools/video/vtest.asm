@@ -1,4 +1,4 @@
-; VTEST.COM - DOSBox test bench for ctmv9k-video.inc (see README.md, check.py)
+; VTEST.COM - DOSBox test bench for ctmousev-video.inc (see README.md, check.py)
 ;
 ; Reads CMDS.BIN (written by check.py), runs each command against the real include code with a
 ; fake CRTC (V9K_TESTCRTC: R12:R13 from a variable) and a fake screen RAM / bitmap in
@@ -20,14 +20,14 @@ MODEGUARD	equ 1
 HWCURSOR	equ 0
 
 V9K_PART = 1
-include ctmv9k-video.inc
+include ctmousev-video.inc
 
 .model tiny
 .code
 		org	100h
 start:		jmp	main
 
-;----- driver state mock (names and types as in ctmv9k.asm)
+;----- driver state mock (names and types as in ctmousev.asm)
 
 		even
 spritebuf	db	4*16 dup (0)
@@ -56,7 +56,7 @@ defmasks	label	word
 		V9K_DEFMASKS
 
 V9K_PART = 2
-include ctmv9k-video.inc
+include ctmousev-video.inc
 
 ;----- test bench
 
