@@ -219,9 +219,12 @@ jmp  rethandler              ; POPALL, pop es, pop ds, iret
 - `chain_ok` (with `CHAIN41`) is set at install only if the old INT 41h vector is non-zero, does not
   point into the driver, and its first byte is not `IRET` (CFh). A chain into a stub that never sends
   EOI would leave IR1 in service and block the lower-priority interrupts.
-- **The 8259 trigger mode is not assumed.** Read the ICW1 that the Victor boot ROM/DOS writes
-  (breakpoint on writes to E0000h in the MAME debugger). Edge-triggered mode decides whether a
-  second pending channel is lost after one EOI.
+- **The 8259 trigger mode** (measured in MAME with a Lua write tap on E0000h, phase 2 tooling):
+  both the boot ROM and DOS 2.11 write ICW1 = 17h (LTIM = 0, **edge-triggered**, single, ICW4
+  needed), ICW2 = 40h (IR1 = INT 41h), ICW4 = 01h; at the DOS prompt the IMR is B3h and the
+  INT 41h vector is 0000:0000. Edge mode means a second channel's pending interrupt is not
+  re-signalled after one EOI unless the 7201 INT line drops and rises again, which it does when
+  the first channel's EOI (WR0A = 38h) lets the next pending source drive INT.
 
 ### 3.4 Resident enable/disable (fn 20h / 1Fh, and fn 0 through 20h)
 
@@ -477,7 +480,10 @@ phase 4 starts. Size reporting and gate: `ctmv9k.asm` stores a `RESSZ` marker (`
 `dw LIMIT`) in its transient data and `tools/ressize.py` (run by `make v9k`) reads it from the built
 `.bin` and fails above `LIMIT`. (Phase 0 finding: the assembler's `if`/`%echo` see pass-1 addresses,
 3108, while the final size is 3134, so a source-level gate is unreliable.) `LIMIT` = 0C40h in
-phase 0 (the byte-identical fork is 0C3Eh) and 0C20h from phase 1 on.
+phase 0 (the byte-identical fork is 0C3Eh) and 0C20h from phase 1 on. The same marker carries
+`TSRdata`/`TSRavail` and the script fails if the initialized data would overlap the entry `jmp`:
+the original `if (TSRdata lt TSRavail) / ORG TSRavail` guard does not fire under JWasm (phase 1
+shrank the uninitialized data to 102h and the build hung).
 
 ## 8. Build changes
 
@@ -516,7 +522,9 @@ The recipe must fail when `cmp` fails. A trailing `; rm` would mask its status.
 - `tools/v9kmouse.py` (host, Python 3): opens MAME's pty (`MamePtyConnection` from
   `viclibc2/serial/python`, or pyserial). It encodes MS packets
   (`0x40|L<<5|R<<4|(dy>>6&3)<<2|(dx>>6&3)`, `dx&63`, `dy&63`) and the Logitech 4th byte (`0x20` =
-  middle). Modes: `--hello` (repeat `'M'`/`'M3'`/`'MZ'`: the pty cannot see RTS), `--script` (deterministic
+  middle, sent with **every** packet while the middle button is held: `MSLTproc` treats a sync
+  byte arriving right after byte 3 as a middle-button release; the wheel byte is bit 4 = middle,
+  bits 3-0 = signed wheel nibble, always present in `MZ` mode). Modes: `--hello` (repeat `'M'`/`'M3'`/`'MZ'`: the pty cannot see RTS), `--script` (deterministic
   move/press/sleep), `--burst` (several bytes back to back, to fill the FIFO), `--garbage` (resync),
   `--interactive`. It also holds the per-pixel cursor oracle for test 17.
 - `utility/v9kmt.asm` (NASM .COM, INT 21h output only: `mousetst.asm` uses INT 10h and will not
@@ -548,7 +556,10 @@ bit where the 7201 expects the stop bit, which gives framing errors. The host fe
 with `find_mame_pty()` from `/root/sync/bldmame1/scripts/victor9k_serial_test.py` (lines 68-110:
 `pgrep mame`, then the pts slaves that are not a controlling terminal). It opens the pty with
 pyserial, as `SerialTester` does (lines 118-141), but with `bytesize=SEVENBITS` at 1200. The pty
-does not carry modem-control lines (lines 268-276), hence `--hello`. Scenarios:
+does not carry modem-control lines (lines 268-276), hence `--hello`. (Implemented: `tools/mame/run.sh`
+finds the ptys from MAME's `/dev/ptmx` fds via `/proc/<pid>/fdinfo` `tty-index`; the newest-pts
+heuristic is ambiguous with two pty ports. Port A is the lower fd. Text cells are ASCII + 64h.)
+Scenarios:
 
 
 | # | Test | Pass criterion |
