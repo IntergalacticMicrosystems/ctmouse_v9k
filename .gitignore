@@ -1,6 +1,5 @@
-*.o
-*.map
-*.com
+ctmv9k.exe
+ctmv9k.bin
 *.bin
-bin2exe
-bin/
+ctmouse.ref
+__pycache__/

@@ -34,17 +34,18 @@
 ; locals
 
 CTMVER		equ <"2.1">		; major driver version
-CTMRELEASE	equ <"2.1 beta4">	; full driver version with suffixes
+CTMRELEASE	equ <"2.1 beta4-V9K">	; full driver version with suffixes
 driverversion	equ 705h		; imitated Microsoft driver version
 ; at least 705h because our int 33 function _26 operates in 7.05+ style
 
 FASTER_CODE	 = 0		; optimize by speed instead size
 OVERFLOW_PROTECT = 0		; prevent variables overflow
 FOOLPROOF	 = 1		; check driver arguments validness
-USE28		 = 0		; include code for INT 33/0028 function
-USERIL           = 0		; include code for INT 10/Fn EGA functions
-
-; %define PS2DEBUG 1		; print debug messages for PS2serv calls
+USE_MSYS	 equ 0		; include Mouse Systems decoder and /M option
+USE_WHEEL	 equ 1		; include MS wheel mouse (4th byte) support
+MODEGUARD	 equ 1		; render target guard on draw/restore (not used yet)
+CHAIN41		 equ 0		; chain the old INT 41h handler (not used yet)
+HWCURSOR	 equ 0		; 6845 hardware text cursor in fn 0Ah (not used yet)
 
 ;------------------------------------------------------------------------
 
@@ -53,44 +54,17 @@ include asmlib/asm.mac
 include asmlib/code.def
 include asmlib/code.mac
 include asmlib/macro.mac
-include asmlib/bios/area0.def	; ** int11 flags and various 40:xx gfx info
-; HW_PS2	equ 4	; bit set in int 11h returned AX if PS/2 mouse present
-; VIDEO_control VIDEO_switches VIDEO_width VIDEO_pageoff VIDEO_mode
-; VIDEO_switches VIDSW_feature0 VIDSW_display VIDEO_ptrtable@
-; VPARAM_SEQC VIDEO_paramtbl@ VIDEO_lastrow VIDEO_pageno
-include asmlib/convert/digit.mac	; ** only count2x uses digits in ASCII
-include asmlib/convert/count2x.mac	; ** only used as _word_hex for I/O port
-include asmlib/dos/mcb.def	; ** small, used to set ownerid and name
 include asmlib/dos/psp.def	; ** only DOS_exit env_seg cmdline_len PSP_TSR used
 ; include asmlib/dos/file.mac	; was only used once - DOSCloseFile
 include asmlib/dos/mem.mac
-; include asmlib/hard/pic8259a.def	; only PIC1_OCW2, PIC1_IMR const used:
-PIC1_OCW2	equ 20h
-PIC1_IMR	equ 21h
-include asmlib/hard/uart.def
 
-USE_286		equ <(@CPU and 4)>
-USE_386		equ <(@CPU and 8)>
+if @CPU and 4
+.err <ctmv9k is an 8086 build>
+endif
 
 _ARG_DI_	equ <word ptr [bp]>
 _ARG_SI_	equ <word ptr [bp+2]>
 _ARG_BP_	equ <word ptr [bp+4]>
-
-if USE_286
-
-_ARG_BX_	equ <word ptr [bp+8]>
-_ARG_DX_	equ <word ptr [bp+10]>
-_ARG_CX_	equ <word ptr [bp+12]>
-_ARG_AX_	equ <word ptr [bp+14]>
-_ARG_ES_	equ <word ptr [bp+16]>
-_ARG_DS_	equ <word ptr [bp+18]>
-; arg offset: far pointer plus 8+2 words (push 2 segs, pusha)
-_ARG_OFFS_	=   24
-
-PUSHALL		equ <pusha>
-POPALL		equ <popa>
-
-else ; USE_286
 
 _ARG_BX_	equ <word ptr [bp+6]>
 _ARG_DX_	equ <word ptr [bp+8]>
@@ -119,8 +93,6 @@ POPALL		macro
 		pop	ax
 endm
 
-endif ; USE_286
-
 nl		equ <13,10>
 eos		equ <0>
 
@@ -128,56 +100,6 @@ POINT		struc
   X		dw ?
   Y		dw ?
 POINT ends
-
-PS2serv		macro	serv:req,errlabel ; :vararg
-		mov	ax,serv
-ifdef PS2DEBUG
-	push ax
-	mov al,'<'
-	int 29h
-	pop ax
-	push ax
-	and al,15	; assume ax is c20n, only show low nibble
-	add al,30h	; convert to digit
-	int 29h
-	mov al,'/'
-	int 29h
-	mov al,bh	; low nibble of bh is interesting, too
-	add al,30h	; (func 7: es bx is pointer)
-	int 29h
-	pop ax
-endif ; ifdef PS2DEBUG
-
-		int	15h
-
-ifdef PS2DEBUG
-	pushf
-	push ax
-	mov al,20h	; space
-	adc al,0	; if carry, exclamation mark
-	int 29h
-	pop ax
-	push ax
-	mov al,ah
-	add al,30h	; usually ah is only 0..9 status
-	int 29h
-	mov al,'/'
-	int 29h
-	mov al,bh	; func 1, 4: device id (1: bl is aa if okay)
-	add al,30h	; can be ff+30 or aa+30 now :-p
-	int 29h
-	mov al,'>'
-	int 29h
-	pop ax
-	popf
-endif ; ifdef PS2DEBUG
-
-	ifnb <errlabel>
-		jc	errlabel
-		test	ah,ah
-		jnz	errlabel
-	endif
-endm
 
 
 ;========================== SEGMENTS DEFINITION ==========================
@@ -272,41 +194,6 @@ wheelUIR	db	?		; wheel counter for UIR
 szClearArea3 = $ - ClearArea		; cleared by softreset_21
 szSaveArea = $ - SaveArea
 
-if USERIL					; -X-
-;----- registers values for RIL -----
-
-;!!! WARNING: registers order and RGROUPDEF contents must be fixed
-
-		even
-VRegsArea = $
-
-regs_SEQC	db	5 dup (?)
-reg_MISC	db	?
-regs_CRTC	db	25 dup (?)
-regs_ATC	db	21 dup (?)
-regs_GRC	db	9 dup (?)
-reg_FC		db	?
-reg_GPOS1	db	?
-reg_GPOS2	db	?
-
-DefVRegsArea = $
-
-def_SEQC	db	5 dup (?)
-def_MISC	db	?
-def_CRTC	db	25 dup (?)
-def_ATC		db	21 dup (?)
-def_GRC		db	9 dup (?)
-def_FC		db	?
-def_GPOS1	db	?
-def_GPOS2	db	?
-
-szVRegsArea = $ - DefVRegsArea
-
-; ERRIF (szVRegsArea ne 64 or $-VRegsArea ne 2*64) "VRegs area contents corrupted!"
-else
-crtc		 dw ?			; 3d4 or 3b4
-endif					; -X- USERIL
-
 ;----- old interrupt vectors -----
 
 oldint33	dd	?		; old INT 33 handler address
@@ -383,44 +270,6 @@ UIRunlock	db	1		; 0=user intr routine is in progress
 videolock	db	1		; drawing: 1=ready,0=busy,-1=busy+queue
 newcursor	db	0		; 1=force cursor redraw
 
-;----- table of pointers to registers values for RIL -----
-
-REGSET		struc
-  rgroup	dw	?
-  regnum	db	?
-  regval	db	?
-REGSET ends
-
-	db 0	; JWASM would use 0fch, "CLD" as pad byte??
-		even
-		dw	(vdata1end-vdata1)/(size REGSET)
-vdata1		REGSET	<10h,1>,<10h,3>,<10h,4>,<10h,5>,<10h,8>,<08h,2>
-vdata1end	label word
-		dw	(vdata2end-vdata2)/(size REGSET)
-vdata2		REGSET	<10h,1,0>,<10h,4,0>,<10h,5,1>,<10h,8,0FFh>,<08h,2,0Fh>
-vdata2end	label byte
-
-RGROUPDEF	struc
-  port@		dw	?
-  regs@		dw	?
-  def@		dw	?
-  regscnt	db	1
-  rmodify?	db	0
-RGROUPDEF ends
-
-if USERIL					; -X-
-		even
-videoregs@	label RGROUPDEF
-	RGROUPDEF <3D4h,regs_CRTC,def_CRTC,25>	; CRTC
-	RGROUPDEF <3C4h,regs_SEQC,def_SEQC,5>	; Sequencer
-	RGROUPDEF <3CEh,regs_GRC, def_GRC, 9>	; Graphics controller
-	RGROUPDEF <3C0h,regs_ATC, def_ATC, 20>	; VGA attrib controller
-	RGROUPDEF <3C2h,reg_MISC, def_MISC>	; VGA misc output and input
-	RGROUPDEF <3DAh,reg_FC,   def_FC>	; Feature Control
-	RGROUPDEF <3CCh,reg_GPOS1,def_GPOS1>	; Graphics 1 Position
-	RGROUPDEF <3CAh,reg_GPOS2,def_GPOS2>	; Graphics 2 Position
-endif						; -X- USERIL
-
 
 ;============================= IRQ HANDLERS =============================
 
@@ -436,170 +285,18 @@ IRQhandler	proc
 ;	CODE_	MOV_CX	IOdone,<db ?,0>		; processed bytes counter
 		OPCODE_MOV_CX
 IOdone		db ?,0
-; -X- IRQproc	label	byte			; "mov al,OCW2<OCW2_EOI>"
-; -X-		j	PS2proc			;  if serial mode
-; -X-		out	PIC1_OCW2,al		; {20h} end of interrupt
-;		out_	PIC1_OCW2,%OCW2<OCW2_EOI>
-		mov	al,20h
-		out	PIC1_OCW2,al
-
-;	CODE_	MOV_DX	IO_address,<dw ?>	; UART IO address
-		OPCODE_MOV_DX
-IO_address	dw ?
-		push	dx
-		movidx	dx,LSR_index
-		 in	al,dx			; {3FDh} LSR: get status
-		xchg	bx,ax			; OPTIMIZE: instead MOV BL,AL
-		pop	dx
-		movidx	dx,RBR_index
-		 in	al,dx			; {3F8h} flush receive buffer
-
-		test	bl,mask LSR_break+mask LSR_FE+mask LSR_OE
-;	if_ nz					; if break/framing/overrun
-	jz @@irqhandlerz
-		xor	cx,cx			;  errors then restart
-		mov	[IOdone],cl		;  sequence: clear counter
-;	end_
-@@irqhandlerz:
-		shr	bl,LSR_RBF+1
-;	if_ carry				; process data if data ready
-	jnc @@irqhandlernc
-		call_	mouseproc,MSMproc	; never PS/2
-;	end_
+; PHASE2: EOI the 8259 (E000:0000), drain the 7201 Rx FIFO (RR0/RR1, error
+;	reset clears IOdone) and pass each good byte in AL to mouseproc
+		j	@@irqhandlernc		; PHASE2: no 7201 byte read yet
+if USE_MSYS
+		call_	mouseproc,MSMproc
+else
+		call_	mouseproc,MSLTproc
+endif
 @@irqhandlernc:
 		jmp	rethandler
 IRQhandler	endp
 		assume	ds:@TSRdata
-
-;========================================================================
-;				Enable PS/2
-;========================================================================
-;
-; In:	none
-; Out:	none
-; Use:	none
-; Modf:	AX, BX, DX, ES
-; Call:	INT 15/C2xx, -X- setRateTSR
-; -X- @disablePS2, INT 21/25 --> no longer (re)hooks IRQ
-;
-enablePS2	proc
-; -X-		call	@disablePS2		; unhooked IRQ
-		MOVSEG	es,cs,,@TSRcode
-		mov	bx,TSRcref:PS2handler	; -X- real handler now
-		PS2serv	0C207h			; set mouse handler in ES:BX
-		mov	bh,1
-		PS2serv	0C200h			; set mouse on (bh=1)
-; -X-		DOSSetIntr 68h+12,,,@TSRcode:IRQhandler
-		mov	bh,5			; -X- 100, KoKo uses 3 (60)
-		call	setRateTSR		; -X-
-		ret
-; -X- PS2dummy:       retf
-enablePS2	endp
-
-;========================================================================
-;				Disable PS/2
-;========================================================================
-;
-; In:	none
-; Out:	none
-; Use:	oldIRQaddr
-; Modf:	AX, BX, DX, ES
-; Call:	INT 15/C2xx, -X- setRateTSR
-; -X- INT 21/25 --> no longer unhooks IRQ  (irq 12, int 74)
-;
-disablePS2	proc
-@disablePS2:	xor	bx,bx
-		PS2serv	0C200h			; set mouse off (bh=0)
-		MOVSEG	es,bx,,nothing
-		PS2serv	0C207h			; clear mouse handler (ES:BX=0)
-		mov	bh,5			; -X- KoKo uses 15/C201 here
-		call	setRateTSR		; -X-
-
-		ret
-disablePS2	endp
-		assume	ds:@TSRdata		; added...?
-
-;========================================================================
-
-; -X- A "light" version for the TSR... In: BH=0..6 for 20,40,60,80,100,200
-; Set mouse sampling rate to "RATES[BH]" samples per second
-setRateTSR	proc
-		PS2serv	0C202h			; set rate, ignore errors
-		ret
-setRateTSR	endp
-
-;========================================================================
-
-; -X- this handler is called by the BIOS, it is no IRQ handler :-)
-PS2handler	proc
-		assume	ds:nothing,es:nothing
-		push	ds
-		push es
-		PUSHALL
-		MOVSEG	ds,cs,,@TSRdata
-
-		mov	bp,sp
-
-PS2WHEELCODE	label	byte		; jump to wheel or plain: test 0/-1
-;		test	sp,0		; 2 byte opcode, sp always NZ here
-;		jnz	PS2WHEEL
-	j	@@PS2PLAIN
-		; stack for non-wheel mice: ... - - Y - X - BTN -
-		; stack for wheel mice:     ... - - W - Y - BTN X
-		; flags: (yext) (xext) ysign xsign 1 btn3 btn1 btn2
-		; ("ext" flag could be used to trigger "xor value,100h")
-@@PS2PLAIN:	; old cutemouse 1.9 PS/2 handler, non-wheel
-		; note: ctmouse 1.9 code uses only sign, not ext
-		mov	al,[bp+_ARG_OFFS_+6]	; buttons and flags
-if USE_286
-		mov	bl,al			; backup, xchg will restore
-		shl	al,3			; CF=Y sign bit, MSB=X sign
-else
-		mov	cl,3
-		mov	bl,al			; backup, xchg will restore
-		shl	al,cl			; CF=Y sign bit, MSB=X sign
-endif
-;		sbb	ch,ch			; extend Y sign bit
-	db 1ah, 0edh	; JWASM and TASM use opposite encoding
-		cbw				; extend X sign bit
-		mov	al,[bp+_ARG_OFFS_+4]	; AX=X movement
-		xchg	bx,ax			; X to BX, buttons to AL
-		mov	cl,[bp+_ARG_OFFS_+2]	; CX=Y movement
-		; wheelmask is 0 now, so no wheel data is expected in AH
-		j	@@PS2DONE
-
-		; stack for non-wheel mice: ... - - Y - X - BTN -
-		; stack for wheel mice:     ... - - W - Y - BTN X
-		; flags: (yext) (xext) ysign xsign 1 btn3 btn1 btn2
-		; "ext" flag can be used to trigger "xor value,100h"
-PS2WHEEL::	; handler based on public domain code from Konstantin Koll
-		; old KoKo code used only ext, not sign, ok on all but Alps
-		mov	al,[bp+_ARG_OFFS_+6]	; buttons and flags
-if USE_286
-		mov	bl,al			; backup, xchg will restore
-		shl	al,3			; CF=Y sign bit, MSB=X sign
-else
-		mov	cl,3
-		mov	bl,al			; backup, xchg will restore
-		shl	al,cl			; CF=Y sign bit, MSB=X sign
-endif
-;		sbb	ch,ch			; extend Y sign bit
-	db 1ah, 0edh	; JWASM and TASM use opposite encoding
-		cbw				; extend X sign bit
-		mov	al,[bp+_ARG_OFFS_+7]	; AX=X movement <--
-		xchg	bx,ax			; X to BX, buttons to AL
-		mov	cl,[bp+_ARG_OFFS_+4]	; CX=Y movement <--
-		mov	ah,[bp+_ARG_OFFS_+2]	; AH=Wheel data <--
-		; reverseY does not seem to support 9th bit, must skip that
-
-@@PS2DONE:	call	reverseY		; AL flags AH wheel BX X CX Y
-		POPALL
-		pop	es
-		pop	ds
-		retf
-PS2handler		endp
-		assume	ds:@TSRdata		; added...?
-
 
 ;========================================================================
 ;			Enable serial interrupt in PIC
@@ -607,63 +304,12 @@ PS2handler		endp
 ;
 ; In:	none
 ; Out:	none
-; Use:	IO_address
-; Modf:	AX, DX, SI, IOdone, MSLTbuttons
-; Call:	INT 21/25
+; Use:	none
+; Modf:	none
+; Call:	none
 ;
 enableUART	proc
-
-;----- set new IRQ handler
-
-		mov	dx,TSRcref:IRQhandler	; -X- IRQintnum 0 means none
-;	CODE_	MOV_AX	IRQintnum,<db 0,25h>	; INT number of selected IRQ
-		OPCODE_MOV_AX
-IRQintnum	db 0,25h
-		int	21h			; set INT in DS:DX
-
-;----- set communication parameters
-
-		mov	si,[IO_address]
-		movidx	dx,LCR_index,si
-;		 out_	dx,%LCR{LCR_DLAB=1}	; {3FBh} LCR: DLAB on
-;		mov al,%LCR{LCR_DLAB=1}	; {3FBh} LCR: DLAB on
-		mov 	al,80h
-		out	dx,al
-;		xchg	dx,si			; 1200 baud rate
-	xchg si,dx	; JWASM and TASM use opposite encoding
-		mov	ax,96
-;		 outw	dx,96			; {3F8h},{3F9h} divisor latch
-		out	dx,ax
-;		xchg	dx,si
-	xchg si,dx	; JWASM and TASM use opposite encoding
-;	CODE_	 MOV_AX
-		OPCODE_MOV_AX
-LCRset	db 00000010b	; LCR	<0,,LCR_noparity,0,2>	; {3FBh} LCR: DLAB off, 7/8N1
-	db 00001111b	; MCR	<,,,1,1,1,1>		; {3FCh} MCR: DTR/RTS/OUTx on
-		 out	dx,ax
-
-;----- prepare UART for interrupts
-
-		movidx	dx,RBR_index,si,LCR_index
-		 in	al,dx			; {3F8h} flush receive buffer
-		movidx	dx,IER_index,si,RBR_index
-;		 out_	dx,%IER{IER_DR=1},%FCR<>; {3F9h} IER: enable DR intr
-						; {3FAh} FCR: disable FIFO
-;		mov	al,%IER{IER_DR=1}
-;		mov	ah,%FCR<>
-		mov ax,1
-		out	dx,ax
-		dec	ax			; OPTIMIZE: instead MOV AL,0
-		mov	[IOdone],al
-		mov	[MSLTbuttons],al
-
-;-----
-
-		in	al,PIC1_IMR		; {21h} get IMR
-;	CODE_	AND_AL	notPIC1state,<db ?>	; clear bit to enable interrupt
-		OPCODE_AND_AL
-notPIC1state	db ?
-		out	PIC1_IMR,al		; {21h} enable serial interrupts
+; PHASE2: enable7201 (hook INT 41h, 7201 Rx interrupts on, unmask IR1)
 		ret
 enableUART	endp
 
@@ -673,43 +319,14 @@ enableUART	endp
 ;
 ; In:	none
 ; Out:	none
-; Use:	IO_address, oldIRQaddr
-; Modf:	AX, DX
-; Call:	INT 21/25
+; Use:	none
+; Modf:	none
+; Call:	none
 ;
 disableUART	proc
-		in	al,PIC1_IMR		; {21h} get IMR
-;	CODE_	OR_AL	PIC1state,<db ?>	; set bit to disable interrupt
-		OPCODE_OR_AL
-PIC1state	db ?
-		out	PIC1_IMR,al		; {21h} disable serial interrupts
-
-;-----
-;!!! MS/Logitech ID bytes (4Dh)+PnP data looks as valid mouse packet, which
-;	moves mouse; to prevent unnecessary send of PnP data after disabling
-;	driver with following enabling, below DTR and RTS remained active
-
-		movidx	dx,LCR_index,[IO_address] ; {3FBh} LCR: DLAB off
-;		 out_	dx,%LCR<>,%MCR<,,,0,,1,1> ; {3FCh} MCR: DTR/RTS on, OUT2 off
-;		mov	al,%LCR<>
-;		mov	ah,%MCR<,,,0,,1,1>
-	mov ax,300h
-		out	dx,ax
-		movidx	dx,IER_index,,LCR_index
-		 ;mov	al,IER<>
-		 out	dx,al			; {3F9h} IER: interrupts off
-
-;----- restore old IRQ handler
-
-		push	ds
-		mov	ax,word ptr [IRQintnum]	; AH=25h
-		lds	dx,[oldIRQaddr]
-		assume	ds:nothing
-		int	21h			; set INT in DS:DX
-		pop	ds
+; PHASE2: disable7201 (mask IR1, 7201 interrupts off, restore INT 41h)
 		ret
 disableUART	endp
-		assume	ds:@TSRdata
 
 ;========================================================================
 ;		Process the Microsoft/Logitech packet bytes
@@ -746,20 +363,12 @@ MSLTCODE1	label	byte			; "ret" if not LT/WM
 ;	CODE_	MOV_BX	MSLT_1,<db ?,0>		; mouse packet first byte
 		OPCODE_MOV_BX
 MSLT_1		db ?,0
-if USE_286
-		ror	bx,2
-else
 		ror	bx,1
 		ror	bx,1
-endif
 ;		xchg	cl,bh			; bits 1-0: X movement HI
 		xchg	bh,cl	; TASM and JWASM use opposite encoding
-if USE_286		
-		ror	bx,2			; bits 5-4: LR buttons
-else
 		ror	bx,1			; bits 5-4: LR buttons
 		ror	bx,1
-endif
 		or	al,bh			; bits 3-2: Y movement HI
 		cbw
 		 xchg	cx,ax			; CX=Y movement
@@ -799,6 +408,7 @@ endif
 		j	swapbuttons
 MSLTproc	endp
 
+if USE_MSYS
 ;========================================================================
 ;		Process the Mouse Systems packet bytes
 ;========================================================================
@@ -849,6 +459,7 @@ MSM_X		dw ?
 MSM_buttons	db ?
 		;j	reverseY		; reverseY is next line anyway
 MSMproc		endp
+endif ; USE_MSYS
 
 ;========================================================================
 ;			Update mouse status
@@ -863,16 +474,18 @@ MSMproc		endp
 ; Modf:	AX, CX, DX, BX, SI, DI, wheel, wheelUIR, UIRunlock
 ; Call:	updateposition, updatebutton, refreshcursor
 ;
+if USE_MSYS
 reverseY	proc
 		neg	cx			; reverse Y movement
 		;j	swapbuttons
 reverseY	endp
+endif ; USE_MSYS
 
 swapbuttons	proc
 		test	al,00000011b	; =3	; check the L and R buttons
 ;	if_ odd					; if buttons not same
 	jpe @@swapeven
-;	CODE_	XOR_AL	swapmask,<db 00000011b>	; 0 if (PS2 xor LEFTHAND)
+;	CODE_	XOR_AL	swapmask,<db 00000011b>	; 0 if LEFTHAND
 		OPCODE_XOR_AL
 swapmask	db 00000011b
 ;	end_
@@ -905,6 +518,7 @@ wheelmask	db	0
 		mov	ax,[mickeys.Y]
 		xchg	ax,di			; retrieve button, wheel info
 		xchg	dx,ax			; OPTIMIZE: instead MOV DX,AX
+if USE_WHEEL
 		mov	al,dh			; wheel: signed 4 bit value
 		xor	al,00001000b	; =8
 		sub	al,00001000b	; =8	; sign extension AL[0:3]->AL
@@ -919,6 +533,7 @@ wheelmask	db	0
 		call	@lastpos
 ;	end_
 @@wheelz:
+endif ; USE_WHEEL
 
 ;----- update buttons state
 
@@ -1017,12 +632,8 @@ if FASTER_CODE
 	jmp short @@up2ae
 @@up2b:
 		mul	dx
-if USE_286		
-		shr	ax,2		; =sensitivity*min(12,abs(mickeys))/4
-else
 		shr	ax,1		; =sensitivity*min(12,abs(mickeys))/4
 		shr	ax,1
-endif
 ;	 end_
 @@up2ae:
 else
@@ -1031,12 +642,8 @@ else
 ;	 end_
 @@up2ae:
 		mul	dx
-if USE_286		
-		shr	ax,2		; =sensitivity*min(12,abs(mickeys))/4
-else
 		shr	ax,1		; =sensitivity*min(12,abs(mickeys))/4
 		shr	ax,1
-endif
 endif
 		imul	si		; DX:AX=mickeys*newsensitivity
 ;	end_
@@ -1056,13 +663,9 @@ if FASTER_CODE
 		cmp	si,8
 ;	if_ ne
 	je @@upeq
-if USE_286
-		shl	ax,3
-else
 		shl	ax,1
 		shl	ax,1
 		shl	ax,1
-endif
 		dec	si
 ;	andif_ gt
 	jle @@upeq
@@ -1076,13 +679,9 @@ endif
 ;	end_
 @@upeq:
 else
-if USE_286
-		shl	ax,3
-else
 		shl	ax,1
 		shl	ax,1
 		shl	ax,1
-endif
 		add	ax,word ptr rounderr[bx]
 		cwd
 		idiv	word ptr mickey8[bx]
@@ -1148,379 +747,6 @@ updatebutton	endp
 ;========================= END OF IRQ HANDLERS ==========================
 
 
-;============================ INT 10 HANDLER ============================
-
-if USERIL					; -X-
-		even
-RILtable	dw TSRcref:RIL_F0	; RIL functions
-		dw TSRcref:RIL_F1
-		dw TSRcref:RIL_F2
-		dw TSRcref:RIL_F3
-		dw TSRcref:RIL_F4
-		dw TSRcref:RIL_F5
-		dw TSRcref:RIL_F6
-		dw TSRcref:RIL_F7
-endif						; -X- USERIL
-
-int10handler	proc
-		assume	ds:nothing,es:nothing
-		cld
-		test	ah,ah			; set video mode?
-		jz	@@setmode
-		cmp	ah,11h			; font manipulation function
-		je	@@setnewfont
-		cmp	ax,4F02h		; VESA set video mode?
-		je	@@setmode
-if USERIL					; -X-
-		cmp	ah,0F0h			; RIL func requested?
-		jb	@@jmpold10
-		cmp	ah,0F7h
-		jbe	@@RIL
-		cmp	ah,0FAh
-		je	@@RIL_FA
-endif						; -X- USERIL
-@@jmpold10:	jmp_far	oldint10
-
-@@setnewfont:	cmp	al,10h
-		jb	@@jmpold10
-		cmp	al,20h
-		jae	@@jmpold10
-		;j	@@setmode
-
-;===== set video mode or activate font
-
-@@setmode:	push	ax
-		mov	ax,2
-		pushf				;!!! Logitech MouseWare
-		push	cs			;  Windows driver workaround
-		call	handler33		; hide mouse cursor
-		pop	ax
-		pushf
-		call	[oldint10]
-		push	ds
-		push	es
-		PUSHALL
-		MOVSEG	ds,cs,,@TSRdata
-		mov	[nocursorcnt],1		; normalize hide counter
-		call	setupvideo
-@@exitINT10:	jmp	rethandler
-
-if USERIL					; -X-
-;===== RIL
-
-@@RIL:		push	ds es
-		PUSHALL
-		MOVSEG	ds,cs,,@TSRdata
-		mov	bp,sp
-		mov	al,ah
-		and	ax,0Fh			;!!! AH must be 0 for RIL_*
-		mov	si,ax
-		add	si,si
-		call	RILtable[si]
-		j	@@exitINT10
-
-;-----
-
-@@RIL_FA:	MOVSEG	es,cs,,@TSRcode		; RIL FA - Interrogate driver
-		mov	bx,TSRcref:RILversion
-else						; -X-
-		assume	ds:nothing		; -X-
-		assume	es:nothing		; -X-
-endif						; -X- USERIL
-		iret
-
-int10handler	endp
-
-if USERIL					; -X-
-		assume	ds:@TSRdata
-;========================================================================
-; RIL F0 - Read one register
-;========================================================================
-;
-; In:	DX			(group index)
-;	BX			(register #)
-; Out:	BL			(value)
-; Use:	videoregs@
-; Modf:	AL, SI
-; Call:	none
-;
-RIL_F0		proc
-		mov	si,dx
-		mov	si,videoregs@[si].regs@
-		cmp	dx,20h
-;	if_ below				; if not single register
-	jae @@rilf0ae
-		add	si,bx
-;	end_
-@@rilf0ae:
-		lodsb
-		mov	byte ptr [_ARG_BX_],al
-		ret
-RIL_F0		endp
-
-;========================================================================
-; RIL F1 - Write one register
-;========================================================================
-;
-; In:	DX			(group index)
-;	BL			(value for single reg)
-;	BL			(register # otherwise)
-;	BH			(value otherwise)
-; Out:	BL			(value)
-; Use:	none
-; Modf:	AX
-; Call:	RILwrite
-;
-RIL_F1		proc
-		mov	ah,bl
-		cmp	dx,20h
-		jae	RILwrite		; jump if single registers
-		xchg	ax,bx			; OPTIMIZE: instead MOV AX,BX
-		mov	byte ptr [_ARG_BX_],ah
-		;j	RILwrite
-RIL_F1		endp
-
-;========================================================================
-; In:	DX			(group index)
-;	AL			(register # for regs group)
-;	AH			(value to write)
-; Out:	none
-; Use:	videoregs@
-; Modf:	AL, DX, BX, DI
-; Call:	RILoutAH, RILgroupwrite
-;
-RILwrite	proc
-		xor	bx,bx
-		mov	di,dx
-		cmp	dx,20h
-		mov	dx,videoregs@[di].port@
-		mov	videoregs@[di].rmodify?,dl ; OPTIMIZE: DL instead 1
-		mov	di,videoregs@[di].regs@
-;	if_ below				; if not single register
-	jae @@rilwae
-		mov	bl,al
-;	end_
-@@rilwae:
-		mov	[di+bx],ah
-		jae	RILoutAH
-		;j	RILgroupwrite
-RILwrite	endp
-
-;========================================================================
-; In:	DX			(IO port)
-;	AL			(register #)
-;	AH			(value to write)
-; Out:	none
-; Use:	videoregs@
-; Modf:	none
-; Call:	none
-;
-RILgroupwrite	proc
-		cmp	dl,0C0h
-;	if_ ne					; if not ATTR controller
-	jz @@rilgwz
-		out	dx,ax	; <---
-		ret
-;	end_
-@@rilgwz:
-		push	ax dx
-		mov	dx,videoregs@[(size RGROUPDEF)*5].port@
-		in	al,dx	; <---		; {3DAh} force address mode
-		pop	dx ax
-		out	dx,al	; <---		; {3C0h} select ATC register
-RILoutAH:	xchg	al,ah
-		out	dx,al	; <---		; {3C0h} modify ATC register
-		xchg	al,ah
-		ret
-RILgroupwrite	endp
-
-;========================================================================
-; RIL F2 - Read register range
-;========================================================================
-;
-; In:	CH			(starting register #)
-;	CL			(# of registers)
-;	DX			(group index: 0,8,10h,18h)
-;	ES:BX			(buffer, CL bytes size)
-; Out:	none
-; Use:	videoregs@
-; Modf:	AX, CX, SI, DI
-; Call:	none
-;
-RIL_F2		proc
-		assume	es:nothing
-		mov	di,bx
-		mov	si,dx
-		mov	si,videoregs@[si].regs@
-		mov	al,ch
-		;mov	ah,0
-		add	si,ax
-RILmemcopy:	; -X- sti
-		mov	ch,0
-		shr	cx,1
-		rep	movsw
-		adc	cx,cx
-		rep	movsb
-		ret
-RIL_F2		endp
-
-;========================================================================
-; RIL F3 - Write register range
-;========================================================================
-;
-; In:	CH			(starting register #)
-;	CL			(# of registers, >0)
-;	DX			(group index: 0,8,10h,18h)
-;	ES:BX			(buffer, CL bytes size)
-; Out:	none
-; Use:	videoregs@
-; Modf:	AX, CX, DX, BX, DI
-; Call:	RILgroupwrite
-;
-RIL_F3		proc
-		assume	es:nothing
-		mov	di,dx
-		mov	dx,videoregs@[di].port@
-		mov	videoregs@[di].rmodify?,dl ; OPTIMIZE: DL instead 1
-		mov	di,videoregs@[di].regs@
-RILgrouploop:	xor	ax,ax
-		xchg	al,ch
-		add	di,ax
-;	countloop_
-@@rilf3loop:
-		mov	ah,es:[bx]
-		mov	[di],ah
-		inc	bx
-		inc	di
-		call	RILgroupwrite
-		inc	ax			; OPTIMIZE: AX instead AL
-;	end_
-		loop @@rilf3loop
-		ret
-RIL_F3		endp
-
-;========================================================================
-; RIL F4 - Read register set
-;========================================================================
-;
-; In:	CX			(# of registers, >0)
-;	ES:BX			(table of registers records)
-; Out:	none
-; Use:	videoregs@
-; Modf:	AL, CX, BX, DI
-; Call:	none
-;
-RIL_F4		proc
-		assume	es:nothing
-		; -X- sti
-		mov	di,bx
-;	countloop_
-@@rilf4loop:
-		mov	bx,es:[di]
-		movadd	di,,2
-		mov	bx,videoregs@[bx].regs@
-		mov	al,es:[di]
-		inc	di
-		xlat
-		stosb
-;	end_
-		loop @@rilf4loop
-		ret
-RIL_F4		endp
-
-;========================================================================
-; RIL F5 - Write register set
-;========================================================================
-;
-; In:	CX			(# of registers, >0)
-;	ES:BX			(table of registers records)
-; Out:	none
-; Use:	none
-; Modf:	AX, CX, DX, SI
-; Call:	RILwrite
-;
-RIL_F5		proc
-		assume	es:nothing
-		mov	si,bx
-;	countloop_
-@@rilf5loop:
-		lods	word ptr es:[si]
-		xchg	dx,ax			; OPTIMIZE: instead MOV DX,AX
-		lods	word ptr es:[si]
-		call	RILwrite
-;	end_
-		loop @@rilf5loop
-		ret
-RIL_F5		endp
-
-;========================================================================
-; RIL F7 - Define registers default
-;========================================================================
-;
-; In:	DX			(group index)
-;	ES:BX			(table of one-byte entries)
-; Out:	none
-; Use:	videoregs@
-; Modf:	CL, SI, DI, ES, DS
-; Call:	RILmemcopy
-;
-RIL_F7		proc
-		assume	es:nothing
-		mov	si,bx
-		mov	di,dx
-		mov	cl,videoregs@[di].regscnt
-		mov	videoregs@[di].rmodify?,cl ; OPTIMIZE: CL instead 1
-		mov	di,videoregs@[di].def@
-		push	es ds
-		pop	es ds
-		j	RILmemcopy
-RIL_F7		endp
-
-;========================================================================
-; RIL F6 - Revert registers to default
-;========================================================================
-;
-; In:	none
-; Out:	none
-; Use:	videoregs@
-; Modf:	AX, CX, DX, BX, SI, DI, ES
-; Call:	RILgrouploop
-;
-RIL_F6		proc
-		MOVSEG	es,ds,,@TSRdata
-		mov	si,TSRdref:videoregs@+(size RGROUPDEF)*8
-
-@@R6loop:	sub	si,size RGROUPDEF
-		xor	cx,cx
-		xchg	cl,[si].rmodify?
-		jcxz	@@R6next
-
-		mov	bx,[si].def@
-		mov	di,[si].regs@
-		mov	dx,[si].port@
-		mov	cl,[si].regscnt
-		;mov	ch,0
-		loop	@@R6group
-		mov	al,[bx]
-		stosb
-		out	dx,al	; <---
-		;j	@@R6next		; OPTIMIZE: single regs
-		j	@@R6loop		;  handled first
-
-@@R6group:	inc	cx			; OPTIMIZE: CX instead CL
-		;mov	ch,0
-		call	RILgrouploop
-
-@@R6next:	cmp	si,TSRdref:videoregs@
-		ja	@@R6loop
-		ret
-RIL_F6		endp
-
-endif						; -X- USERIL
-
-;======================== END OF INT 10 HANDLER =========================
-
-
 ;========================================================================
 ;			Draw mouse cursor
 ;========================================================================
@@ -1559,30 +785,7 @@ drawcursor	proc
 		;MOVSEG	es,[videoseg],,nothing
 		pop	di
 
-		cmp	[cursortype],ch		; OPTIMIZE: CH instead 0
-;	if_ nz
-	jz @@drz
-
-;----- position hardware text mode cursor
-
-		shr	di,1
-if USERIL					; -X-
-		mov	dx,videoregs@[0].port@	; CRTC port
-else
-		mov	dx,[crtc]		; 3d4 or 3b4
-endif						; -X- USERIL
-		mov	ax,di
-;		out_	dx,0Fh,al		; cursor position lo
-		mov	ah,al
-		mov	al,0fh
-		out	dx,ax
-		xchg	ax,di			; OPTIMIZE: instead MOV AX,DI
-;		out_	dx,0Eh,ah		; cursor position hi
-		mov	al,0eh
-		out	dx,ax
-		ret
-;	end_
-@@drz:
+; PHASE4: hardware text cursor (CRTC R14/R15) only under HWCURSOR
 
 ;----- draw software text mode cursor
 
@@ -1616,8 +819,8 @@ restorescreen	proc
 
 ;----- graphics mode
 
-		call	restoresprite
-		jmp	restorevregs
+; PHASE5: restore the saved bitmap background (v9k_grestore)
+		ret
 ;	 end_
 @@rsnz:
 
@@ -1641,520 +844,24 @@ restorescreen	endp
 ;========================================================================
 
 graphcursor	proc
-		sub	ax,[hotspot.X]		; virtual X
-		sub	bx,[hotspot.Y]		; virtual Y
-		mov	si,16			; cursor height
-		push	ax
-		call	checkifseen
-		pop	ax
-		jc	restorescreen		; jump if not in seen area
-
-		xchg	ax,bx
-		xor	dx,dx
-		neg	ax
-;	if_ lt
-	jge @@gcge
-		neg	ax
-		xchg	ax,dx
-;	end_
-@@gcge:
-		mov	[spritetop],ax
-		mov	ax,[screenheight]
-		cmp	si,ax
-;	if_ ge
-	jl @@gclt
-		xchg	si,ax			; OPTIMIZE: instead MOV SI,AX
-;	end_
-@@gclt:
-		sub	si,dx			; =spriteheight
-		push	si			;  =min(16-ax,screenheight-dx)
-		call	getgroffset
-		pop	dx
-
-; cx=force request, bx=X, di=line offset, si=nextrow, dx=spriteheight
-
-		add	di,bx
-		les	ax,dword ptr [cursor@]
-		assume	es:nothing
-		inc	ax
-;	if_ nz					; if cursor drawn
-	jz @@cpz
-;	CODE_	CMP_DI	cursorpos,<dw ?>
-		OPCODE_CMP_DI
-cursorpos	dw ?
-;	 if_ eq
-	jnz @@cpnz2
-		cmp	dx,[spriteheight]
-;	 andif_ eq				; exit if position not changed
-	jnz @@cpnz2
-		jcxz	@drawret		;  and cursor not forced
-;	 end_
-@@cpnz2:
-		push	bx
-		push	dx
-		push	di
-		dec	ax
-		xchg	di,ax			; OPTIMIZE: instead MOV DI,AX
-		call	restoresprite
-		;MOVSEG	es,[videoseg],,nothing
-		pop	di
-		pop	dx
-;	else_
-	jmp short @@cpnz
-@@cpz:
-		push	bx
-		call	updatevregs
-;	end_
-@@cpnz:
-		pop	bx
-
-; bx=X, di=line offset+bx, si=nextrow, dx=spriteheight, es=videoseg
-
-		mov	[cursorpos],di
-		mov	[spriteheight],dx
-		mov	[nextrow],si
-		sub	di,bx
-		push	dx
-
-;----- precompute sprite parameters
-
-		push	bx
-		mov	cl,[bitmapshift]
-		mov	dx,[cursorwidth]
-		sar	bx,cl			; left sprite offset (signed)
-		mov	ax,[scanline]
-		add	dx,bx			; right sprite offset
-		cmp	dx,ax
-;	if_ ae
-	jb @@pspb
-		xchg	dx,ax			; DX=min(DX,scanline)
-;	end_
-@@pspb:
-
-		pop	ax			; =cursorX
-		sub	cl,3			; mode 0Dh=1, other=0
-		and	ax,[granumask.X]	; fix for mode 4/5
-		sar	ax,cl			; sprite shift for non 13h modes
-		neg	bx			; sprite shift for 13h mode
-;	if_ lt					; if left sprite offset>0
-	jge @@pspge
-		add	dx,bx
-		sub	di,bx
-		mov	bl,0
-		and	al,7			; shift in byte (X%8)
-;	end_
-@@pspge:
-
-		inc	bx			; OPTIMIZE: BX instead BL
-		sub	al,8			; if cursorX>0
-		mov	bh,al			; ...then BH=-(8-X%8)
-		push	bx			; ...else BH=-(8-X)=-(8+|X|)
-
-;----- save screen sprite and draw cursor at new cursor position
-
-		mov	[spritewidth],dx
-		mov	[cursor@],di
-		mov	al,0D6h			; screen source
-		call	copysprite		; save new sprite
-
-;	CODE_	MOV_BX	spritetop,<dw ?>
-		OPCODE_MOV_BX
-spritetop	dw ?
-		pop	cx
-		pop	ax			; CL/CH=sprite shift
-						; AX=[spriteheight]
-						; SI=[nextrow]
-		add	bx,bx			; mask offset
-;	countloop_ ,ax
-@@spriteloop:
-		push	ax
-		push	cx
-		push	bx
-		push	si
-		push	di
-		mov	si,[spritewidth]
-		mov	dx,word ptr screenmask[bx]
-		mov	bx,word ptr cursormask[bx]
-		call	makerow
-		pop	di
-		pop	si
-		pop	bx
-		pop	cx
-		pop	ax
-		add	di,si
-		xor	si,[nextxor]		; for interlaced mode?
-		movadd	bx,,2
-;	end_
-	dec ax
-	jnz @@spriteloop
-
-;-----
-
-		;j	restorevregs
+; PHASE5: V9K strip renderer into the 800x400 bitmap (plan 4.4);
+;	unreachable while videoseg=0
+		j	restorescreen
 graphcursor	endp
-
-;========================================================================
-;		Restore graphics card video registers
-;========================================================================
-
-restorevregs	proc
-		mov	bx,TSRdref:vdata1
-		j	@writevregs
-restorevregs	endp
-
-;========================================================================
-;		Save & update graphics card video registers
-;========================================================================
-
-updatevregs	proc
-		mov	bx,TSRdref:vdata1
-		mov	ah,0F4h			; read register set
-		call	@registerset
-
-		mov	bx,TSRdref:vdata2
-@writevregs::	mov	ah,0F5h			; write register set
-
-@registerset::	; if planar videomode [0Dh-12h] then "push es" else "ret"
-		db	?
-		MOVSEG	es,ds,,@TSRdata
-		mov	cx,[bx-2]
-		int	10h
-		pop	es
-		ret
-updatevregs	endp
-
-;========================================================================
-
-restoresprite	proc
-		call	updatevregs
-		mov	al,0D7h			; screen destination
-		;j	copysprite		; restore old sprite
-restoresprite	endp
-
-;========================================================================
-;		Copy screen sprite back and forth
-;========================================================================
-;
-; In:	AL			(0D6h/0D7h-screen source/dest.)
-;	ES:DI			(pointer to video memory)
-; Out:	CX = 0
-;	BX = 0
-; Use:	buffer@ (small in DS for CGA, larger for MCGA, in a000 for EGA...)
-; Modf:	AX, DX
-; Call:	none
-;
-copysprite	proc	C uses si di ds es	; TASM inserts PUSH here!
-		assume	es:nothing
-		cmp	al,0D6h
-		pushf				; whether to swap pointers
-		mov	NEXTOFFSCODE[1],al
-;	CODE_	MOV_AX	nextrow,<dw ?>		; ax = next row offset
-		OPCODE_MOV_AX
-nextrow		dw ?
-;	CODE_	MOV_BX	spriteheight,<dw ?>	; bx = sprite height in lines
-		OPCODE_MOV_BX
-spriteheight	dw ?
-
-		push	ax
-		mov	al,0BEh			; 1 for CGA / MCGA: MOV SI
-		cmp	[bitmapshift],1		; 1 for MCGA mode 13h
-		jz	@blitmode
-		cmp	byte ptr videoseg[1],0A0h
-		jne	@blitmode		; jump if CGA
-		mov	al,0E8h			; 0 for EGA / VGA: CALL
-@blitmode:	mov	BLITCODE[1],al
-		cmp	al,0E8h
-		jnz	@blitram		; if not EGA / VGA, skip GRC
-		call	backup3ce		; backup 3ce/f regs
-		push	dx
-		mov	dx,3ceh
-		mov	ax,word ptr SEQ5[1]	; mode reg, ax=nn05
-		and	ah,0f4h			; read mode 0/1 plane/match...
-		or	ah,1			; write mode 1: from latch :-)
-		out	dx,ax
-		mov	dx,3ceh
-		mov	ax,0003h		; operator: COPY all planes :-)
-		out	dx,ax
-		pop	dx
-@blitram:	pop	ax
-
-		lds	si,[buffer@]
-		assume	ds:nothing
-		popf				; whether to swap pointers
-;	if_ eq
-	jnz @@blitnz
-		push	ds
-		push	es
-		pop	ds
-		pop	es			; DS:SI=screen
-;		xchg	si,di			; ES:DI=buffer
-		xchg	di,si	; JWASM and TASM use opposite encoding
-;	end_
-@@blitnz:
-
-;	countloop_ ,bx
-@@spritewloop:
-;	CODE_	MOV_CX	spritewidth,<dw ?>	; seen part of sprite in bytes
-		OPCODE_MOV_CX
-spritewidth	dw ?
-		movsub	dx,ax,cx		; mov dx,ax sub dx,cx
-		; instead of movsb inside a000:x, one could possibly do
-		; out 3ce,4 read/stosb out 3ce,104 read/stosb out 3ce,204
-		; read/stosb out 3ce,304 movsb -> copy planewise on EGA/VGA
-		; ... but that would require a suitable target buffer!
-		rep	movsb			; -X- now for CGA EGA VGA MCGA
-
-NEXTOFFSCODE	db	01h,0d6h		; ADD SI,DX/ADD DI,DX
-;	CODE_	XOR_AX	nextxor,<dw ?>		; for interlace modes?
-		OPCODE_XOR_AX
-nextxor		dw ?
-;	end_	; of outer countloop_
-	dec bx
-	jnz @@spritewloop
-
-BLITCODE	db 90h				; for the label ;-)
-		call restore3ce			; CALL or nop-ish MOV SI
-		ret	; TASM inserts the right POP here!
-
-copysprite	endp
-		assume	ds:@TSRdata
-
-;========================================================================
-;		Transform the cursor mask row to screen
-;========================================================================
-;
-; In:	DX = screenmask[row]	(which pixels will combine with screen color)
-;	BX = cursormask[row]	(which pixels will be white/inverted, rather than black/transparent)
-;	SI = [spritewidth]
-;	CL			(sprite shift when mode 13h)
-;	CH			(sprite shift when non 13h modes) (??)
-;	ES:DI			(video memory pointer)
-; Out:	none
-; Use:	bitmapshift		(1 if mode 13h MCGA)
-; Modf:	AX, CX, DX, BX, SI, DI
-; Call:	none
-;
-makerow		proc
-		assume	es:nothing
-		cmp	[bitmapshift],1		; =1 for 13h mode
-;	if_ eq
-	jnz @@mrnz
-
-;-----
-
-;	 countloop_ ,si				; loop over x pixels
-@@pixloop:
-		shl	bx,cl			; if MSB=0
-;		sbb	al,al			; ...then AL=0
-	db 1ah, 0c0h	; JWASM and TASM use opposite encoding
-		and	al,0Fh			; ...else AL=0Fh (WHITE color)
-		shl	dx,cl
-;	  if_ carry				; if most sign bit nonzero
-	jnc @@mrnc
-		xor	al,es:[di]
-;	  end_
-@@mrnc:
-		stosb
-		mov	cl,1
-;	 end_ countloop
-		dec si
-		jnz @@pixloop
-		ret
-;	end_ if
-@@mrnz:
-
-;----- display cursor row in modes other than 13h
-
-makerowno13:	call 	backup3ce
-
-		mov	ax,0FFh
-;	loop_					; shift masks left until ch++ is 0
-@@m13zloop:
-		add	dx,dx
-		adc	al,al
-		inc	dx			; al:dh:dl shifted screenmask
-		add	bx,bx
-		adc	ah,ah			; ah:bh:bl shifted cursormask
-		inc	ch
-;	until_ zero
-	jnz @@m13zloop
-;		xchg	dh,bl			; al:bl:dl - ah:bh:dh
-		xchg	bl,dh	; JWASM and TASM use opposite encoding
-
-;	countloop_ ,si
-@@m13loop:
-		push	dx
-; ***		push	bx			; must be omitted, but why?
-		mov	dx,es
-		cmp	dh,0A0h
-;	 if_ ne					; if not planar mode 0Dh-12h
-	jz @@m13z
-		and	al,es:[di]
-		xor	al,ah
-		stosb
-;	 else_
-	jmp short @@m13nz
-@@m13z:
-		xchg	cx,ax			; OPTIMIZE: instead MOV CX,AX
-if 1	; OLD BUT WORKING
-;		out_	3CEh,5,0		; set write mode 0: "color: reg2 mask: reg8"
-		mov	dx,3ceh
-		mov	ax,5
-		out	dx,ax
-;		out_	,3,8h			; data ANDed with latched data
-		mov	ax,803h
-		out	dx,ax
-		xchg	es:[di],cl
-;		out_	,3,18h			; data XORed with latched data
-		mov	ax,1803h
-		out	dx,ax
-		xchg	es:[di],ch
-else	; NEW BUT NO TRANSPARENCY
-		mov	dx,3ceh			; graphics controller
-		mov	ax,word ptr SEQ5[1]	; mode reg, ax=nn05
-		and	ah,0f4h			; zap mode bits
-		or	ah,2			; set write mode 2: "color: ram, mask: reg8"
-		out	dx,ax
-		mov	dx,3ceh			; graphics controller
-		mov	ax, 803h		; 8 pan 0, mode AND (TODO: preserve pan)
-		out	dx,ax			; set operation
-		mov	al,8			; mask reg
-		mov	ah,cl			; AND mask
-		out	dx,ax			; set mask
-		mov	byte ptr es:[di],12	; color
-		mov	ax,1803h		; 18 pan 0, mode XOR (TODO: preserve pan)
-		out	dx,ax			; set operation
-		mov	al,8
-		mov	ah,ch			; XOR mask
-		out	dx,ax			; set mask
-		mov	byte ptr es:[di],15	; color
-endif
-		inc	di
-;	 end_
-@@m13nz:
-		xchg	ax,bx			; OPTIMIZE: instead MOV AX,BX
-		pop	bx			; why was this push dx - pop bx?
-; ***		pop	dx			; must be omitted, but why?
-;	end_ countloop
-	dec si
-	jnz @@m13loop
-
-restore3ce::	push	dx
-		push	ax
-		mov	dx,3ceh			; graphics controller
-SEQ3		db	0b8h,3,0		; mov ax,0003
-		out	dx,ax
-SEQ4		db	0b8h,4,0		; mov ax,0004
-		out	dx,ax
-SEQ5		db	0b8h,5,0		; mov ax,0005
-		out	dx,ax
-SEQ8		db	0b8h,8,0		; mov ax,0008
-		out	dx,ax
-		pop	ax
-		pop	dx
-		ret
-
-;----- backup 4 EGA+ graphics controller registers, can only read VGA, not from EGA
-
-backup3ce::	push	dx
-		push	ax
-		mov	dx,3ceh			; graphics controller
-		mov	al,3			; operator / pan, pan is 3 LSB
-		out	dx,al
-		inc	dx
-		in	al,dx
-		mov	cs:SEQ3[2],al
-		dec	dx
-		mov	al,4			; plane: 2 LSM, only for read
-		out	dx,al
-		inc	dx
-		in	al,dx
-		mov	cs:SEQ4[2],al
-		dec	dx
-		mov	al,5			; mode: read, write, memmode/depth
-		out	dx,al
-		inc	dx
-		in	al,dx
-		mov	cs:SEQ5[2],al
-		dec	dx
-		mov	al,8			; bit mask (...)
-		out	dx,al
-		inc	dx
-		in	al,dx
-		mov	cs:SEQ8[2],al
-		pop	ax
-		pop	dx
-		ret
-
-makerow		endp
-
-;========================================================================
-;	Return graphic mode video memory offset to line start
-;========================================================================
-;
-; In:	DX			(Y coordinate in pixels)
-; Out:	DI			(video memory offset)
-;	SI			(offset to next row)
-; Use:	videoseg, scanline
-; Modf:	AX, DX, ES
-; Call:	@getoffsret
-; Info:	4/5 (320x200x4)   byte offset = (y/2)*80 + (y%2)*2000h + (x*2)/8
-;	  6 (640x200x2)   byte offset = (y/2)*80 + (y%2)*2000h + x/8
-;	0Dh (320x200x16)  byte offset = y*40 + x/8, bit offset = 7 - (x % 8)
-;	0Eh (640x200x16)  byte offset = y*80 + x/8, bit offset = 7 - (x % 8)
-;	0Fh (640x350x4)   byte offset = y*80 + x/8, bit offset = 7 - (x % 8)
-;	10h (640x350x16)  byte offset = y*80 + x/8, bit offset = 7 - (x % 8)
-;	11h (640x480x2)   byte offset = y*80 + x/8, bit offset = 7 - (x % 8)
-;	12h (640x480x16)  byte offset = y*80 + x/8, bit offset = 7 - (x % 8)
-;	13h (320x200x256) byte offset = y*320 + x
-;	HGC (720x348x2)   byte offset = (y%4)*2000h + (y/4)*90 + x/8
-;						    bit offset = 7 - (x % 8)
-;
-getgroffset	proc
-		xor	di,di
-		mov	ax,[scanline]
-		MOVSEG	es,di,,BIOS
-		mov	si,ax			; [nextrow]
-		cmp	byte ptr videoseg[1],0A0h
-		je	@getoffsret		; jump if not videomode 4-6
-		mov	si,2000h
-		sar	dx,1			; DX=Y/2
-		jnc	@getoffsret
-		mov	di,si			; DI=(Y%2)*2000h
-		mov	si,-(2000h-80)
-		j	@getoffsret
-getgroffset	endp
 
 ;========================================================================
 ;		Return text mode video memory offset
 ;========================================================================
 ;
 ; In:	AX/BX			(cursor position X/Y)
-; Out:	DI			(video memory offset=row*[0:44Ah]*2+column*2)
-; Use:	0:44Ah, 0:44Eh, bitmapshift
-; Modf:	AX, DX, BX, ES
-; Call:	getpageoffset
+; Out:	DI			(video memory offset)
+; Use:	none
+; Modf:	none
+; Call:	none
 ;
 gettxtoffset	proc
-		MOVSEG	es,0,dx,BIOS
-		xchg	di,ax			; OPTIMIZE: instead MOV DI,AX
-		mov	al,[bitmapshift]
-		dec	ax			; OPTIMIZE: AX instead AL
-		xchg	cx,ax
-		sar	di,cl			; DI=column*2
-		xchg	cx,ax			; OPTIMIZE: instead MOV CX,AX
-		xchg	ax,bx			; OPTIMIZE: instead MOV AX,BX
-if USE_286		
-		sar	ax,2			; AX=row*2=Y/4
-else
-		sar	ax,1			; AX=row*2=Y/4
-		sar	ax,1
-endif
-		mov	dx,[VIDEO_width]	; screen width
-
-@getoffsret::	imul	dx			; AX=row*screen width
-		add	ax,[VIDEO_pageoff]	; add video page offset
-		add	di,ax
+; PHASE4: CRTC start + row*80 + column, wrapped (plan 4.2)
+		xor	di,di
 		ret
 gettxtoffset	endp
 
@@ -2230,9 +937,9 @@ setupvideo	endp
 ; In:	none
 ; Out:	[AX] = 21h/FFFFh	(not installed/installed)
 ;	[BX] = 2/3/FFFFh	(number of buttons)
-; Use:	0:449h, 0:44Ah, 0:463h, 0:484h, 0:487h, 0:488h, 0:4A8h
-; Modf:	RedefArea, screenheight, granumask, buffer@, videoseg, cursorwidth,
-;	scanline, nextxor, bitmapshift, @registerset, rangemax, ClearArea
+; Use:	none
+; Modf:	RedefArea, screenheight, granumask, videoseg, cursorwidth,
+;	scanline, bitmapshift, rangemax, ClearArea
 ; Call:	hidecursor, @savecutpos
 ;
 softreset_21	proc
@@ -2245,230 +952,16 @@ buttonscnt	equ	byte ptr [$-2]		; buttons count (2/3)
 		mov	si,szClearArea3/2	; clear area 3
 ; ERRIF (szClearArea3 mod 2 ne 0) "szClearArea3 must be even!"
 
-;----- setup video regs values for current video mode
+;----- set parameters for current video mode
 
 @setvideo::	push	si
-		MOVSEG	es,ds,,@TSRdata		; push ds pop es, assume...
-		MOVSEG	ds,0,ax,BIOS		; xor ax,ax mov ds,ax
-		mov	ax,[CRTC_base]		; base IO address of CRTC
-if USERIL					; -X-
-		mov	videoregs@[0].port@,ax	; 3D4h/3B4h
-		add	ax,6			; Feature Control register
-		mov	videoregs@[(size RGROUPDEF)*5].port@,ax
-else
-		mov	cs:crtc,ax
-endif						; -X- USERIL
-		mov	al,[VIDEO_mode]		; current video mode
-		push	ax
-
-;-----
-
-;	block_
-		mov	ah,9
-		cmp	al,11h			; VGA videomodes?
-;	 breakif_ ae
-	jae @@blend
-
-		cbw				; OPTIMIZE: instead MOV AH,0
-		cmp	al,0Fh			; 0F-10 videomodes?
-;	 if_ ae
-	jb @@blb
-;		testflag [VIDEO_control],mask VCTRL_RAM_64K
-		test [VIDEO_control],60h	; mask VCTRL_RAM_64K
-		; value ?nn????? where n+1 = 64kBy blocks of RAM installed
-;	  breakif_ zero				; break if only 64K of VRAM
-	jz @@blend
-		mov	ah,2
-;	 else_
-	jmp short @@blend
-@@blb:
-		cmp	al,4			; not color text modes?
-;	 andif_ below
-	jnb @@blend
-		xchg	cx,ax			; OPTIMIZE: instead MOV CX,AX
-		mov	al,[VIDEO_switches]	; get display combination
-;		maskflag al,mask VIDSW_feature0+mask VIDSW_display
-		and al,mask VIDSW_feature0+mask VIDSW_display
-		cmp	al,9			; EGA+ECD/MDA?
-		je	@@lines350
-		cmp	al,3			; MDA/EGA+ECD?
-;	  if_ eq
-	jnz @@blnz
-@@lines350:	mov	ch,13h
-;	  end_
-@@blnz:
-		xchg	ax,cx			; OPTIMIZE: instead MOV AX,CX
-;	 end_ if
-;	end_ block
-@@blend:
-
-;-----
-
-if USERIL					; -X-
-		lds	si,[VIDEO_ptrtable@]	; 40:a8
-		assume	ds:nothing
-		lds	si,[si].VIDEO_paramtbl@	; first pointer there...
-		add	ah,al
-		mov	al,(offset VPARAM_SEQC) shl 2
-		shr	ax,2
-		add	si,ax			; SI += (AL+AH)*64+5
-
-		mov	di,TSRdref:VRegsArea
-		push	di
-		mov	al,3
-		stosb				; def_SEQ[0]=3
-		memcopy	50			; copy default registers value
-		mov	al,0
-		stosb				; def_ATC[20]=0; VGA only
-		memcopy	9			; def_GRC
-		;mov	ah,0
-		stosw				; def_FC=0, def_GPOS1=0
-		inc	ax			; OPTIMIZE: instead MOV AL,1
-		stosb				; def_GPOS2=1
-
-		pop	si			; initialize area of defaults
-		;mov	di,TSRdref:DefVRegsArea
-; ERRIF (DefVRegsArea ne VRegsArea+64) "VRegs area contents corrupted!"
-		memcopy	szVRegsArea,,,,es,@TSRdata	; NOTE: changes es assume!
-
-		dec	ax			; OPTIMIZE: instead MOV AL,0
-		mov	cx,8
-		mov	di,TSRdref:videoregs@[0].rmodify?
-;	countloop_
-@@setvloop:
-		stosb
-		add	di,(size RGROUPDEF)-1
-;	end_
-	loop @@setvloop
-else						; -X-
-; ***		MOVSEG	es,ds,,@TSRdata		; -X- push ds pop es, assume...
-		assume	es:nothing		; -X-
-		MOVSEG	ds,cs,,@TSRcode		; -X- push ds pop es, assume...
-endif						; -X- USERIL
-
-;----- set parameters for current video mode
-; mode	 seg   screen  cell scan planar  VX/
-;			    line	byte
-;  0	B800h  640x200 16x8   -    -	  -
-;  1	B800h  640x200 16x8   -    -	  -
-;  2	B800h  640x200	8x8   -    -	  -
-;  3	B800h  640x200	8x8   -    -	  -
-;  4	B800h  320x200	2x1   80   no	  8
-;  5	B800h  320x200	2x1   80   no	  8
-;  6	B800h  640x200	1x1   80   no	  8
-;  7	B000h  640x200	8x8   -    -	  -
-; 0Dh	A000h  320x200	2x1   40  yes	 16
-; 0Eh	A000h  640x200	1x1   80  yes	  8
-; 0Fh	A000h  640x350	1x1   80  yes	  8
-; 10h	A000h  640x350	1x1   80  yes	  8
-; 11h	A000h  640x480	1x1   80  yes	  8
-; 12h	A000h  640x480	1x1   80  yes	  8
-; 13h	A000h  320x200	2x1  320   no	  2
-; other     0  640x200	1x1   -    -	  -
-;
-		pop	ax			; current video mode
-; mode 0-3
-		mov	dx,0B8FFh		; B800h: [0-3]
-		mov	cx,0304h		; 16x8: [0-1]
-		mov	di,200			; x200: [4-6,0Dh-0Eh,13h]
-		cmp	al,2
-;	if_ ae
-	jb @@stb
-		dec	cx			; 8x8: [2-3,7]
-		cmp	al,4
-;	andif_ ae
-	jb @@stb
-; mode 7
-		cmp	al,7
-		jne	@@checkgraph
-		mov	dh,0B0h			; B000h: [7]
-;	end_
-@@stb:
-
-@@settext:	mov	ch,1
-		mov	bh,0F8h
-		shl	dl,cl
-
-		MOVSEG	es,0,ax,BIOS		; xor ax,ax mov es,ax assume
-		add	al,[VIDEO_lastrow]	; screen height-1
-;	if_ nz					; zero on old machines
-	jz @@stz
-		inc	ax			; OPTIMIZE: AX instead AL
-if USE_286
-		shl	ax,3
-else
-		shl	ax,1
-		shl	ax,1
-		shl	ax,1
-endif
-		xchg	di,ax			; OPTIMIZE: instead MOV DI,AX
-;	end_
-@@stz:
-		mov	ax,[VIDEO_width]	; screen width
-		j	@@setcommon
-
-; mode 4-6
-@@checkgraph:	mov	ah,0C3h			; RET opcode for [4-6,13h]
-		;mov	cx,0303h		; sprite: 3 bytes/row
-		;mov	dx,0B8FFh		; B800h: [4-6]/1x1: [6,0Eh-12h]
-		;mov	di,200			; x200: [4-6,0Dh-0Eh,13h]
-		mov	si,2000h xor -(2000h-80) ; [nextxor] for [4-6]
-		;MOVSEG	es,ds,,@TSRdata
-		mov	bx,TSRdref:spritebuf
-		cmp	al,6
-		je	@@setgraphics
-		jb	@@set2x1
-
-; in modes 0Dh-13h screen contents under cursor sprite will be
-; saved at free space in video memory (A000h segment)
-
-		mov	dh,0A0h			; A000h: [0Dh-13h]
-		MOVSEG	es,0A000h,bx,nothing
-		xor	si,si			; [nextxor] for [0Dh-13h]
-		cmp	al,13h
-		ja	@@nonstandard
-		je	@@mode13
-; mode 8-0Dh
-		cmp	al,0Dh
-		jb	@@nonstandard
-		mov	ah,06h			; PUSH ES opcode for [0Dh-12h]
-		mov	bx,3E82h		; 16002: [0Dh-0Eh]
-		je	@@set320
-; mode 0Eh-12h
-		cmp	al,0Fh
-		jb	@@setgraphics
-		mov	di,350			; x350: [0Fh-10h]
-		mov	bh,7Eh			; 32386: [0Fh-10h]
-		cmp	al,11h
-		jb	@@setgraphics
-		mov	di,480			; x480: [11h-12h]
-		mov	bh,9Eh			; 40578: [11h-12h]
-		j	@@setgraphics
-; mode 13h
-@@mode13:	;mov	bl,0
-		mov	bh,0FAh			; =320*200
-		mov	cx,1000h		; sprite: 16 bytes/row
-
-@@set320:	inc	cx			; OPTIMIZE: instead INC CL
-@@set2x1:	dec	dx			; OPTIMIZE: instead MOV DL,-2
-
-@@setgraphics:	nop				; -X-
-		saveFAR	[buffer@],es,bx
-		mov	[nextxor],si
-		mov	byte ptr [@registerset],ah
-		j	@@setgcommon
-
-@@nonstandard:	;mov	cl,3
-		;mov	dl,0FFh
-		;mov	di,200
-
-;;+++++ for text modes: dh := 0B8h, j @@settext
-
-		mov	dh,0			; no video segment
-
-@@setgcommon:	mov	ax,640			; virtual screen width
-		mov	bh,0FFh			; Y granularity
-		shr	ax,cl
+; PHASE4: v9k_detect_mode (text/graphics layout from the CRTC); until then
+;	no cursor is drawn (videoseg=0) and the screen is 800x400
+		mov	ax,800 shr 3		; screen line width in bytes
+		mov	cx,0303h		; cursor width 3 bytes, bitmapshift 3
+		mov	dx,00FFh		; no video segment, X granularity 1
+		mov	bh,0FFh			; Y granularity 1
+		mov	di,400			; screen height
 
 @@setcommon:	mov	[screenheight],di
 		mov	[scanline],ax		; screen line width in bytes
@@ -2514,17 +1007,15 @@ endif
 softreset_21	endp
 
 ;========================================================================
-; 1F - Disable mouse driver and unhook int 10 and IRQ
+; 1F - Disable mouse driver and unhook IRQ
 ;========================================================================
 ;
 ; In:	none
 ; Out:	[AX] = 1Fh/FFFFh	(success/unsuccess)
 ;	[ES:BX]			(old int33 handler)
-; Use:	oldint33, oldint10
+; Use:	oldint33
 ; Modf:	AX, CX, DX, BX, DS, ES, disabled?, nocursorcnt
-; Call:	INT 21/35, INT 21/25, disablePS2/disableUART, hidecursor
-; -X- TODO: call int 15/C201 (reset resolution and rate, disable)
-; -X- TODO: check if enabledriver_20 still works after int 15/C201
+; Call:	INT 21/35, disableUART, hidecursor
 ;
 disabledrv_1F	proc
 		les	ax,[oldint33]
@@ -2532,8 +1023,8 @@ disabledrv_1F	proc
 		mov	[_ARG_ES_],es
 		mov	[_ARG_BX_],ax
 
-		; this can be patched from disablePS2 to disableUART:
-		call_	disableproc,disablePS2	; can change ES!
+		; PHASE2: patched to disable7201, ownership check first (plan 3.4)
+		call_	disableproc,disableUART	; can change ES!
 
 		mov	al,[disabled?]
 		test	al,al
@@ -2544,8 +1035,8 @@ disabledrv_1F	proc
 		mov	[nocursorcnt],al	; normalize hide counter
 		call	hidecursor		; restore screen contents
 
-;----- check if INT 33 or INT 10 were intercepted
-;	(i.e. handlers segment not equal to CS)
+;----- check if INT 33 was intercepted
+;	(i.e. handler segment not equal to CS)
 
 		mov	cx,cs
 		DOSGetIntr 33h
@@ -2553,23 +1044,11 @@ disabledrv_1F	proc
 		cmp	dx,cx
 		jne	althandler_18
 
-		; DOSGetIntr 10h
-		; mov	ah,35h
-		mov	al,10h
-		int	21h
-		movsub	ax,es,cx
-		jne	althandler_18
-
-		inc	ax			; OPTIMIZE: instead MOV AL,1
-		mov	[disabled?],al
-		lds	dx,[oldint10]
-		assume	ds:nothing
-		DOSSetIntr 10h			; restore old INT 10 handler
+		mov	[disabled?],1
 ;	end_ if
 @@ddrvnz:
 		ret
 disabledrv_1F	endp
-		assume	ds:@TSRdata
 
 ;========================================================================
 ; 18 - Set alternate User Interrupt Routine
@@ -2615,42 +1094,20 @@ resetdriver_00	proc
 resetdriver_00	endp
 
 ;========================================================================
-; 20 - Enable mouse driver and hook int 10 and IRQ
+; 20 - Enable mouse driver and hook IRQ
 ;========================================================================
 ;
 ; In:	none
 ; Out:	[AX] = 20h/FFFFh	(success/unsuccess)
 ; Use:	none
-; Modf:	AX, CX, DX, BX, ES, disabled?, oldint10
-; Call:	INT 21/35, INT 21/25, setupvideo, enablePS2/enableUART
+; Modf:	AX, CX, DX, BX, ES, disabled?
+; Call:	setupvideo, enableUART
 ;
 enabledriver_20	proc
-		xor	cx,cx
-		xchg	cl,[disabled?]
-;	if_ ncxz
-	jcxz @@edcxz
-
-;----- set new INT 10 handler
-
-		DOSGetIntr 10h
-		saveFAR	[oldint10],es,bx
-		;mov	al,10h
-		push	ds	; -X-
-		push	cs	; -X-
-		pop	ds	; -X-
-;		DOSSetIntr ,,,@TSRcode:int10handler
-		mov	dx,@TSRcode:int10handler
-		mov	ah,25h
-		int	21h
-		pop	ds	; -X-
-;	end_
-@@edcxz:
-
-;-----
-
+		mov	[disabled?],0
 		call	setupvideo
-		; this can be patched from enablePS2 to enableUART:
-		jmp_	enableproc,enablePS2	; can change ES!
+		; PHASE2: patched to enable7201
+		jmp_	enableproc,enableUART	; can change ES!
 enabledriver_20	endp
 
 ;========================================================================
@@ -2778,6 +1235,7 @@ mickeys_0B	endp
 ; Modf:	AX
 ; Call:	@retBCX
 ;
+if USE_WHEEL
 wheelAPI_11	proc
 		mov	[_ARG_AX_],574Dh
 ;	CODE_	MOV_CX	wheelflags,<db 0,0>
@@ -2786,6 +1244,7 @@ wheelflags	db 0,0
 		xor	ax,ax
 		j	@retBCX
 wheelAPI_11	endp
+endif ; USE_WHEEL
 
 ;========================================================================
 ; 15 - Get driver storage requirements
@@ -2830,16 +1289,14 @@ sensitivity_1B	endp
 ;
 ; In:	none
 ; Out:	[BX]			(display page number)
-; Use:	0:462h
-; Modf:	AX, DS
+; Use:	none
+; Modf:	AX
 ; Call:	@retBX
 ;
 videopage_1E	proc
-		MOVSEG	ds,0,ax,BIOS
-		mov	al,[VIDEO_pageno]
+		xor	ax,ax			; one display page
 		j	@retBX
 videopage_1E	endp
-		assume	ds:@TSRdata
 
 ;========================================================================
 ; 01 - Show mouse cursor
@@ -3046,17 +1503,14 @@ redrawcursor	endp
 ; Out:	none
 ; Use:	none
 ; Modf:	AX, CX, BX, cursortype, startscan, endscan
-; Call:	INT 10/01, @showret, redrawcursor
+; Call:	@showret, redrawcursor
 ;
 textcursor_0A	proc
 ;		xchg	cx,bx
 		xchg	bx,cx	; TASM and JWASM use opposite encodings
 ;	if_ ncxz				; if hardware cursor
 	jcxz @@tcacxz
-		mov	ch,bl
-		mov	cl,dl
-		mov	ah,1
-		int	10h			; set cursor shape & size
+; PHASE4: CRTC R10/R11 only under HWCURSOR, else software cursor
 		mov	cl,1
 ;	end_
 @@tcacxz:
@@ -3389,7 +1843,11 @@ handler33table	dw TSRcref:resetdriver_00
 		dw TSRcref:nullfunc		;lightpenoff_0E
 		dw TSRcref:sensitivity_0F
 		dw TSRcref:updateregion_10
-		dw TSRcref:wheelAPI_11
+if USE_WHEEL
+		dw	TSRcref:wheelAPI_11
+else
+		dw	TSRcref:nullfunc		;11 - wheel API
+endif
 		dw TSRcref:nullfunc		;12 - large graphics cursor
 		dw TSRcref:doublespeed_13
 		dw TSRcref:exchangeUIR_14
@@ -3536,11 +1994,7 @@ cursrange_31:	cmp	al,31h
 active_32:	cmp	al,32h
 ;	if_ eq
 	jnz @@a32nz
-if USE28
-		mov	ax,0111010000001100b	; active: 26 27 28 2A 31 32
-else
 		mov	ax,0110010000001100b	; active: 26 27 2A 31 32
-endif
 		xor	cx,cx
 		xor	dx,dx
 @iretBX0:	xor	bx,bx
@@ -3575,42 +2029,6 @@ version_6D:	cmp	al,6Dh
 ;	end_
 @@v6dnz:
 
-if USE28
-;========================================================================
-; 28 - Set video mode
-; In:	CX			(video mode)
-;	DX			(font size, ignored)
-; Out:	[CX]			(=0 if successful)
-; Modf:	none
-; Call:	none
-;
-setvidmode_28:	cmp	al,28h
-;	if_ eq
-	jnz @@v28nz
-		push	ax bx bp		;!!! some BIOSes trash BP
-		test	ch,ch			; VESA mode >= 100h
-;	 if_ zero
-	jnz @@v28nz2
-		mov	ax,cx
-		;mov	ah,0
-		int	10h			; set the video mode in AL
-		mov	ah,0Fh
-		int	10h			; get current video mode
-		cmp	al,cl			; CL=requested video mode
-		je	@@setmoderet0		; return if successful
-;	 end_
-@@v28nz2:
-		mov	bx,cx
-		mov	ax,4F02h
-		int	10h			; set VESA video mode in BX
-		cmp	ax,004Fh		; CX=requested video mode
-		jne	@@setmoderet
-
-@@setmoderet0:	xor	cx,cx			; CX=0 if successful
-@@setmoderet:	pop	bp bx ax		; CX=requested mode or 0
-;	end_
-@@v28nz:
-endif
 
 ;========================================================================
 ; 2A - Get cursor hot spot
@@ -3640,9 +2058,8 @@ handler33	endp
 ;======================== END OF INT 33 SERVICES ========================
 
 
-RILversion	label byte
 msversion	db driverversion / 100h,driverversion mod 100h
-IDstring	db 'CuteMouse ',CTMVER,0
+IDstring	db 'CuteMouse V9K ',CTMVER,0
 szIDstring = $ - IDstring
 
 TSRend		label byte
@@ -3651,9 +2068,8 @@ TSRend		label byte
 ; (in the transient .data below) from the built .bin and fails the build above LIMIT.
 ; The assembler's own `if`/%echo cannot be used: they see pass-1 addresses, which
 ; are short by the later short->near jump extensions (3108 vs the real 3134).
-; LIMIT is 0C40h in phase 0 (the byte-identical fork is 0C3Eh) and 0C20h
-; (MOUSE.DEV's 3104 bytes) from phase 1 on.
-LIMIT		equ 0C40h
+; LIMIT is 0C20h (MOUSE.DEV's 3104 bytes) from phase 1 on (0C40h in phase 0).
+LIMIT		equ 0C20h
 
 
 ;======================= INITIALIZATION PART DATA =======================
@@ -3664,8 +2080,12 @@ LIMIT		equ 0C40h
 %include ?LANG.msg
 ; messages ends
 
-S_mousetype	dw dataref:S_atPS2
+S_mousetype	dw 0			; 0 was PS/2
+if USE_MSYS
 		dw dataref:S_inMSYS
+else
+		dw 0
+endif
 		dw dataref:S_inLT
 		dw dataref:S_inMS
 
@@ -3676,17 +2096,12 @@ ressize_marker	db 'RESSZ'		; read by tools/ressize.py
 		dw LIMIT
 
 options		dw 0
-OPT_PS2		equ	    1b
 OPT_serial	equ	   10b
-OPT_COMforced	equ	  100b
-OPT_PS2after	equ	 1000b
 OPT_3button	equ	10000b
+if USE_MSYS
 OPT_MSYS	equ    100000b
+endif
 OPT_lefthand	equ   1000000b
-OPT_noUMB	equ  10000000b
-
-OPT_newTSR	equ 100000000b
-OPT_Wheel	equ 1000000000b
 
 
 ;============================== REAL START ==============================
@@ -3718,68 +2133,20 @@ real_start:	cld
 
 ;-----
 
-		mov	ax,[options]
-;		testflag ax,OPT_PS2+OPT_serial
-		test	al, OPT_PS2+OPT_serial	; value is 3, TASM optimizes
-;	if_ zero				; if no /S and /P then
-	jnz @@sonz
-;		setflag	ax,OPT_PS2+OPT_serial	;  both PS2 and serial assumed
-		or al, OPT_PS2+OPT_serial	; value is 3, TASM optimizes
-;	end_
-@@sonz:
-;---
-;		testflag ax,OPT_PS2after
-		test al, OPT_PS2after		; 8, TASM optimizes this
-;	if_ nz
-	jz @@paz
-		call	searchCOM		; call if /V
+		call	detectmouse		; PHASE2: 7201 init + detection
 		jnc	@@serialfound
-;	end_
-@@paz:
-;---
-;		testflag ax,OPT_PS2+OPT_PS2after
-		test al, OPT_PS2+OPT_PS2after	; 9, TASM optimizes this
-;	if_ nz
-	jz @@p2z
-		push	ax
-		call	checkPS2		; call if /V or PS2
-		pop	ax
-;	andif_ nc
-	jc @@p2z
-		mov	mouseinfo[0],bh
-		j	@@mousefound
-;	end_
-@@p2z:
-;---
-;		testflag ax,OPT_PS2after
- 		test al, OPT_PS2after	; 8, TASM optimizes this
-;	if_ zero
-	jnz @@panz
-;		testflag ax,OPT_serial+OPT_MSYS	; 2008: better than +nomsys?
-		test al, OPT_serial+OPT_MSYS	; 22h, TASM optimizes this
-;	andif_ nz
-	jz @@panz
-		call	searchCOM		; call if no /V and serial
-		jnc	@@serialfound
-;	end_
-@@panz:
 		mov	di,dataref:E_notfound	; 'Error: device not found'
 		jmp	EXITENABLE
 
 ;-----
 
-@@serialfound:	;push	ax			; preserve OPT_newTSR value
-		mov	al,2
+@@serialfound:	mov	al,2
 		mov	mouseinfo[1],al
 		mov	[mouseinfo1],al
-		;pop	ax
-@@mousefound:	mov	[mousetype],bl
+		mov	[mousetype],bl
 
 ;----- check if CuteMouse driver already installed
 
-;		testflag ax,OPT_newTSR
-		test ah, OPT_newTSR shr 8	; ax,100h, TASM optimizes
-		jnz	@@newTSR
 		call	getCuteMouse
 		mov	di,dataref:S_reset	; 'Resident part reset to'
 		mov	cx,4C02h		; terminate, al=return code
@@ -3787,11 +2154,11 @@ real_start:	cld
 ;	if_ ne
 	jz @@mfz
 
-;----- allocate UMB memory, if possible, and set INT 33 handler
+;----- set INT 33 handler (the TSR stays in place)
 
 @@newTSR:	mov	bx,(TSRend-TSRstart+15)/16
 		push	bx
-		call	prepareTSR		; new memory segment in ES
+		call	prepareTSR		; memory segment in ES
 		memcopy	<size oldint33>,es,,@TSRdata:oldint33,ds,,@TSRdata:oldint33
 		push	ds
 		MOVSEG	ds,es,,@TSRcode
@@ -3820,18 +2187,18 @@ real_start:	cld
 @@mfnc:
 
 		cbw				; OPTIMIZE: instead MOV AH,0
+if USE_MSYS
 		cmp	al,1 shl 1
+endif
 		xchg	si,ax			; OPTIMIZE: instead MOV SI,AX
-;	if_ ae					; if not PS/2 mode (=0)
-	jb @@mfb
-;	 if_ eq					; if Mouse Systems (=1)
-	 jnz @@mfnz
+if USE_MSYS
+;	if_ eq					; if Mouse Systems (=1)
+	jnz @@mfnz
 		inc	cx			; OPTIMIZE: CX instead CL
-;	 end_
-@@mfnz:
-		say	@data:S_atCOM
 ;	end_
-@@mfb:
+@@mfnz:
+endif
+		say	@data:S_atCOM		; PHASE2: name the 7201 channel
 		push	cx			; exit function and errorlevel
 ;		say	S_mousetype[si]
 		mov	di, S_mousetype[si]
@@ -3866,46 +2233,12 @@ real_start:	cld
 
 setupdriver	proc
 
-;----- detect VGA card (VGA ATC have one more register)
-
-		mov	ax,1A00h
-		int	10h			; get display type in BX
-		cmp	al,1Ah
-; if USERIL					; -X-
-;	if_ eq
-	jnz @@sdnz
-		xchg	ax,bx			; OPTIMIZE: instead MOV AL,BL
-		sub	al,7
-		cmp	al,8-7
-;	andif_ be					; if monochrome or color VGA
-	ja @@sdnz
-if USERIL
-		inc	videoregs@[(size RGROUPDEF)*3].regscnt
-endif
-;	end_
-@@sdnz:
-; else
-if 1						; -X-
-		; *** SAY error if AL not 1ah: need VGA as we have no RIL ***
-		jz @havevga
-		say E_needvga
-@havevga:
-endif						; -X-
-; endif						; -X- USERIL
-
 ;----- setup left hand mode handling
 
-;	CODE_	MOV_CX	mousetype,<db ?,0>	; 0=PS/2,1=MSys,2=LT,3=MS,
+;	CODE_	MOV_CX	mousetype,<db ?,0>	; 1=MSys,2=LT,3=MS,83h=MS+wheel
 		OPCODE_MOV_CX
 mousetype	db ?,0
-						; 80h=PS/2+wheel,83h=MS+wheel
-		test	cl,7Fh
-		mov	al,00000000b	; =0
-;	if_ nz					; if not PS/2 mode (=x0h)
-	jz @@mtz
 		mov	al,00000011b	; =3
-;	end_
-@@mtz:
 ;		testflag [options],OPT_lefthand
 		test byte ptr [options], OPT_lefthand	; 40h, TASM optimizes
 ;	if_ nz
@@ -3922,7 +2255,6 @@ mousetype	db ?,0
 		test byte ptr [options], OPT_3button	; 10h, TASM optimizes
 ;	if_ zero
 	jnz @@mtnz
-		jcxz	@@setbuttons		; jump if PS/2 mode (=0)
 		cmp	cl,al			; OPTIMIZE: AL instead 3
 ;	andif_ eq				; if MS mode (=3)
 	jnz @@mtnz
@@ -3932,6 +2264,7 @@ mousetype	db ?,0
 ;	end_
 @@mtnz:
 
+if USE_WHEEL
 		cmp	cl,80h			; if some wheel protocol
 ;	if_ ae
 	jb @@mtb
@@ -3939,22 +2272,21 @@ mousetype	db ?,0
 		mov	[wheelmask],00001111b	; =0Fh
 ;	end_
 @@mtb:
+endif ; USE_WHEEL
 
 ;----- setup mouse handlers code
 
 ;	block_
-		test	cl,7Fh
-;	 breakif_ zero				; break if PS/2 mode (=x0h)
-	jz @@mtblock
-
-; -X-		fixcode	IRQproc,0B0h,%OCW2<OCW2_EOI> ; MOV AL,OCW2<OCW2_EOI>
+		; PHASE2: patch in enable7201/disable7201
 		fixnear	enableproc,enableUART
 		fixnear	disableproc,disableUART
 		dec	cx
+if USE_MSYS
 ;	 breakif_ zero				; break if Mouse Systems mode (=1)
 	jz @@mtblock
 
 		fixnear	mouseproc,MSLTproc
+endif ; USE_MSYS
 		dec	cx
 ;	 breakif_ zero				; break if Logitech mode (=2)
 	jz @@mtblock
@@ -3976,25 +2308,9 @@ mousetype	db ?,0
 
 ;----- setup, if required, other parameters
 
-@@setother:	push	es
-		push	ds
-		push	es
-		push	ds
-		pop	es
-		pop	ds			; get back [oldint10]...
-		memcopy	<size oldint10>,es,,@TSRdata:oldint10,ds,,@TSRdata:oldint10
-		mov	al,[disabled?]
-		pop	ds
-		mov	[disabled?],al		; ...and [disabled?]
-
-		DOSGetIntr [IRQintnum]		; -X- can be 0, none
-		mov	ax,es
-		pop	es
-		mov	di,TSRdref:oldIRQaddr
-		xchg	ax,bx
-		stosw				; save old IRQ handler
-		xchg	ax,bx			; OPTIMIZE: instead MOV AX,BX
-		stosw
+@@setother:	mov	al,es:[disabled?]	; get back [disabled?]
+		mov	[disabled?],al
+; PHASE2: save the old INT 41h vector into oldIRQaddr
 
 ;----- copy TSR image (even if ES=DS - this is admissible)
 
@@ -4015,590 +2331,21 @@ mousetype	db ?,0
 setupdriver	endp
 
 ;========================================================================
-;		Check given or all COM-ports for mouse connection
-;========================================================================
-
-searchCOM	proc
-		;mov	[LCRset],LCR<0,,LCR_noparity,0,2>
-		mov	di,coderef:detectmouse
-		call	COMloop
-		jnc	@searchret
-
-;		testflag [options],OPT_MSYS
-		test byte ptr [options], OPT_MSYS	; 20h, TASM optimizes
-		stc
-		jz	@searchret
-
-;		mov	[LCRset],LCR<0,,LCR_noparity,0,3>
-		mov	[LCRset],3
-		mov	bl,1			; =Mouse Systems mode
-		mov	di,coderef:checkUART
-		;j	COMloop
-searchCOM	endp
-
-;========================================================================
-
-COMloop		proc
-		push	ax
-		xor	ax,ax			; scan only current COM port
-;		testflag [options],OPT_COMforced
-		test byte ptr [options], OPT_COMforced	; 4, TASM optimizes
-		jnz	@@checkCOM
-		mov	ah,3			; scan all COM ports
-
-;	loop_
-@@ccns:
-		inc	ax			; OPTIMIZE: AX instead AL
-		push	ax
-		call	setCOMport
-		pop	ax
-@@checkCOM:	push	ax
-		mov	si,[IO_address]
-		call	di
-		pop	ax
-		jnc	@@searchbreak
-		dec	ah
-;	until_ sign
-	jns @@ccns
-		;stc				; preserved from prev call
-
-@@searchbreak:	pop	ax
-@searchret::	ret
-COMloop		endp
-
-;========================================================================
-;			Check if UART available
-;========================================================================
-;
-; In:	SI = [IO_address]
-; Out:	Carry flag		(no UART detected)
-; Use:	none
-; Modf:	AX, DX
-; Call:	none
-;
-checkUART	proc
-		test	si,si
-		 jz	@@noUART		; no UART if base=0
-
-;----- check UART registers for reserved bits
-
-		movidx	dx,MCR_index,si		; {3FCh} MCR (modem ctrl reg)
-		 in	ax,dx			; {3FDh} LSR (line status reg)
-;		testflag al,mask MCR_reserved+mask MCR_AFE
-		test al, mask MCR_reserved+mask MCR_AFE
-		 jnz	@@noUART
-		movidx	dx,LSR_index,si,MCR_index
-		 in	al,dx			; {3FDh} LSR (line status reg)
-		inc	ax
-		 jz	@@noUART		; no UART if AX was 0FFFFh
-
-;----- check LCR function
-
-		cli
-		movidx	dx,LCR_index,si,LSR_index	; "dec dx dec dx"
-		 in	al,dx			; {3FBh} LCR (line ctrl reg)
-		 push	ax
-;		out_	dx,%LCR<1,0,-1,-1,3>	; {3FBh} LCR: DLAB on, 8S2
-;		mov	al,%LCR<1,0,-1,-1,3>
-		mov	al,10111111b
-		out	dx,al
-		 inb	ah,dx
-;		out_	dx,%LCR<0,0,0,0,2>	; {3FBh} LCR: DLAB off, 7N1
-;		mov	al,%LCR<0,0,0,0,2>
-		mov	al,00000010b
-		out	dx,al
-		 in	al,dx
-		sti
-;		sub	ax,(LCR<1,0,-1,-1,3> shl 8)+LCR<0,0,0,0,2>
-		sub	ax, (10111111b shl 8) + 00000010b
-
-;	if_ zero				; zero if LCR conforms
-	jnz @@lcrnz
-
-;----- check IER for reserved bits
-
-		movidx	dx,IER_index,si,LCR_index
-		 in	al,dx			; {3F9h} IER (int enable reg)
-		movidx	dx,LCR_index,si,IER_index
-		;mov	ah,0
-		and	al,mask IER_reserved	; reserved bits should be clear
-;	end_ if
-@@lcrnz:
-
-		neg	ax			; nonzero makes carry flag
-		pop	ax
-		 out	dx,al			; {3FBh} LCR: restore contents
-		ret
-
-@@noUART:	stc
-		ret
-checkUART	endp
-
-;========================================================================
 ;			Detect mouse type if present
 ;========================================================================
 ;
-; In:	SI = [IO_address]
-; Out:	Carry flag		(no UART or mouse found)
+; In:	none
+; Out:	Carry flag		(no mouse found)
 ;	BX			(mouse type: 2=Logitech,3=MS,83h=MS+wheel)
-; Use:	0:46Ch, LCRset
-; Modf:	AX, CX, DX, ES
-; Call:	checkUART
+; Use:	none
+; Modf:	none
+; Call:	none
 ;
 detectmouse	proc
-		call	checkUART
-		jnc	@@detmokay
-		jmp	@@detmret
-@@detmokay:
-
-;----- save current LCR/MCR
-
-		movidx	dx,LCR_index,si		; {3FBh} LCR (line ctrl reg)
-		 in	ax,dx			; {3FCh} MCR (modem ctrl reg)
-		 push	ax			; keep old LCR and MCR values
-
-;----- reset UART: drop RTS line, interrupts and disable FIFO
-
-		;movidx	dx,LCR_index,si		; {3FBh} LCR: DLAB off
-;		 out_	dx,%LCR<>,%MCR<>	; {3FCh} MCR: DTR/RTS/OUT2 off
-;		mov	al,0	; %LCR<>
-;		mov	ah,0	; %MCR<>
-	xor ax,ax	; the out_ macro optimizes this
-		out	dx,ax
-		movidx	dx,IER_index,si,LCR_index
-		 ;mov	ax,(FCR<> shl 8)+IER<>	; {3F9h} IER: interrupts off
-		 out	dx,ax			; {3FAh} FCR: disable FIFO
-
-;----- set communication parameters and flush receive buffer
-
-		movidx	dx,LCR_index,si,IER_index
-;		 out_	dx,%LCR{LCR_DLAB=1}	; {3FBh} LCR: DLAB on
-;		mov	al,%LCR{LCR_DLAB=1} 
-		mov	al,80h
-		out	dx,al
-;		xchg	dx,si
-		xchg	si,dx	; TASM and JWASM use opposite encodings
-		 ;mov	ah,0			; 1200 baud rate
-;		 out_	dx,96,ah		; {3F8h},{3F9h} divisor latch
-		mov	al,96
-		out	dx,ax
-;		xchg	dx,si
-		xchg	si,dx	; TASM and JWASM use opposite encodings
-;		 out_	dx,[LCRset]		; {3FBh} LCR: DLAB off, 7/8N1
-		mov	al,[LCRset]
-		out	dx,al
-		movidx	dx,RBR_index,si,LCR_index
-		 in	al,dx			; {3F8h} flush receive buffer
-
-;----- wait current+next timer tick and then raise RTS line
-
-		MOVSEG	es,0,ax,BIOS
-;	loop_
-@@tmrnz:
-		mov	ah,byte ptr [BIOS_timer]
-;	 loop_
-@@tmrz:
-		cmp	ah,byte ptr [BIOS_timer]
-;	 until_ ne				; loop until next timer tick
-	jz @@tmrz
-		xor	al,1
-;	until_ zero				; loop until end of 2nd tick
-	jnz @@tmrnz
-
-		movidx	dx,MCR_index,si,RBR_index
-;		 out_	dx,%MCR<,,,0,,1,1>	; {3FCh} MCR: DTR/RTS on, OUT2 off
-;		mov	al,%MCR<,,,0,,1,1>
-		mov al,00000011b
-		out	dx,al
-
-;----- detect if Microsoft or Logitech mouse present
-
-		mov	bx,0103h		; bl=mouse type, bh=no `M'
-;	countloop_ 4,cl				; scan 4 first bytes
-	mov cl,4
-@@clloop:
-;	 countloop_ 2+1,ch			; length of silence in ticks
-	mov ch,2+1
-@@chloop:
-						; (include rest of curr tick)
-		mov	ah,byte ptr [BIOS_timer]
-;	  loop_
-@@zloop:
-		movidx	dx,LSR_index,si
-		 in	al,dx			; {3FDh} LSR (line status reg)
-;		testflag al,mask LSR_RBF
-		test al, mask LSR_RBF
-		 jnz	@@parse			; jump if data ready
-		cmp	ah,byte ptr [BIOS_timer]
-;	  until_ ne				; loop until next timer tick
-	jz @@zloop
-;	 end_ countloop				; loop until end of 2nd tick
-	dec ch
-	jnz @@chloop
-; 	 break_					; break if no more data
-	jmp short @@clloopend
-
-@@parse:	movidx	dx,RBR_index,si
-		 in	al,dx			; {3F8h} receive byte
-		cmp	al,'('-20h
-;	 breakif_ eq				; break if PnP data starts
-	jz @@clloopend
-		cmp	al,'M'			; PnP: microsoft?
-;	 if_ eq
-	jnz @@prsnz
-		mov	bh,0			; MS compatible mouse found...
-;	 end_
-@@prsnz:
-		cmp	al,'Z'			; PnP: wheel?
-;	 if_ eq
-	jnz @@prsnz2
-; * Only for PS2, wheel detection is a risk, so never disable COM wheel check
-; *		testflag [options],OPT_Wheel
-; *	if_ nz
-		mov	bl,83h			; ...MS mouse+wheel found
-; *	end_	; else leave bx = 103 (from above) = MS without wheel
-;	 end_
-@@prsnz2:
-		cmp	al,'3'			; PnP: logitech?
-;	 if_ eq
-	jnz @@prsnz3
-		mov	bl,2			; ...Logitech mouse found
-;	 end_
-@@prsnz3:
-;	end_ countloop
-	dec cl
-	jnz @@clloop
-@@clloopend:
-
-		movidx	dx,LCR_index,si
-		 pop	ax			; {3FBh} LCR: restore contents
-		 out	dx,ax			; {3FCh} MCR: restore contents
-
-		shr	bh,1			; 1 makes carry flag
-@@detmret:	ret
+; PHASE2: 7201 init (plan 3.2) and bounded 'M'/'3'/'Z' detection (5.2)
+		stc				; no mouse found
+		ret
 detectmouse	endp
-
-;========================================================================
-;				Check for PS/2
-;========================================================================
-;
-; In:	none
-; Out:	Carry flag		(no PS/2 device found)
-;	BL			(mouse type: 0=PS/2)
-;	BH			(interrupt #/0=PS/2)
-; Use:	none
-; Modf:	AX, CX, BX
-; -X- did the old version change ES?
-; Call:	INT 11, INT 15/C2xx, setRate
-; -X- replaced outKBD, flushKBD by int 15/C2xx calls (KoKo/Eric)
-; After reset with C201: "disabled, 100 Hz, 4 c/mm, 1:1", protocol unchanged
-;
-checkPS2	proc
-	jmp short @@ps2foo
-@@noPS2y:	jmp	@@noPS2			; no supported type
-@@ps2foo:
-		int	11h			; get equipment list
-;		testflag al,mask HW_PS2
-		test al, mask HW_PS2
-		jz	@@noPS2y		; jump if PS/2 not indicated
-		mov	bh,3			; standard 3 byte packets
-		PS2serv 0C205h,@@noPS2y		; initialize mouse, bh=datasize
-		mov	bh,3			; resolution: 2^bh counts/mm
-		PS2serv 0C203h,@@noPS2x		; set mouse resolution bh
-		PS2serv 0C204h,@@PS2valid1	; get type (KoKo)
-		; Dell Inspirion 1501 touchpad fails w/ i/o error on c204
-		; but works as a 2 button non-PnP mouse with ctmouse 1.9
-@@isPS2pnp:	cmp	bh,0FFh			; KoKo: ?
-		jz	@@PS2valid1
-		cmp	bh,0AAh			; Dosemu
-		jz	@@PS2valid1
-		cmp	bh,0			; KoKo: plain
-		jz	@@PS2valid1
-		cmp	bh,3			; KoKo: wheel
-		jz	@@PS2valid1
-		cmp	bh,4			; KoKo: plain? wheel?
-		jz	@@PS2valid1
-@@noPS2x:	jmp	@@noPS2			; no supported type
-@@dummyPS2:	retf				; no-op callback handler
-@@PS2valid1:	push	cs
-		pop	es
-		mov	bx,coderef:@@dummyPS2
-		PS2serv	0C207h,@@noPS2x		; can we set a handler?
-		MOVSEG	es,0,bx,nothing
-		PS2serv	0C207h			; clear mouse handler (ES:BX=0)
-
-;		testflag [options],OPT_Wheel	; dare to try PS2 wheel?
-		test byte ptr [options+1], OPT_Wheel shr 8	; TASM optimizes
-;	if_ nz
-	jz @@ps2wz
-;----- select IntelliMouse Z wheel + 3 button mode, via magic rate handshake
-
-		mov	ah,200
-		call	setRate
-		jc	@@noPS2z
-		mov	ah,100
-		call	setRate
-		jc	@@noPS2z
-		mov	ah,80
-		call	setRate			; 200->100->80 rate does this
-		jc	@@noPS2z
-;	end_
-@@ps2wz:
-
-;----- check if successful
-
-if 0
-		mov	dx,0D464h		; enable mouse functions
-		call	outKBD
-		mov	dx,0F260h		; get ID
-		call	flushKBD		; returns ah
-else
-		PS2serv 0C204h,@@PS2nonPnP	; get type (KoKo)
-		mov	ah,bh
-endif
-
-		cmp	ah,0FFh			; ?
-		jz	@@PS2valid2
-		cmp	ah,0AAh			; Dosemu
-		jz	@@PS2valid2
-		cmp	ah,0			; plain
-		jz	@@PS2valid2
-		cmp	ah,3			; wheel
-		jz	@@PS2valid2
-		cmp	ah,4			; plain? wheel?
-		jz	@@PS2valid2
-		jmp	@@noPS2			; no supported type
-@@noPS2z:	jmp	@@noPS2
-@@PS2nonPnP:	; see note about Dell Inspiron 1501 above
-		mov	ah,0			; assume plain
-@@PS2valid2:
-		xor	bx,bx			; =PS/2 mouse found
-		cmp	ah,3			; ID=3 -> 3 button+wheel mode
-;	if_ eq
-	jnz @@ps2w2
-;		testflag [options],OPT_Wheel
-		test byte ptr [options+1], OPT_Wheel shr 8 ; TASM optimizes
-;	if_ nz		; patch a jump short from to PS2PLAIN into to PS2WHEEL:
-	jz @@ps2w2
-;		mov	PS2WHEELCODE[1], PS2WHEEL - PS2WHEELCODE - 2
-; ...		push	bx
-; ...		mov	bx,offset PS2WHEELCODE + 2	; enable wheel
-; ...		mov	word ptr cs:[bx], -1	; make test return NZ
-; ...		pop	bx
-		mov	byte ptr [PS2WHEELCODE+1],PS2WHEEL-PS2WHEELCODE-2
-		mov	bl,80h			; =PS/2+wheel mouse
-
-		push	ax
-		push	bx
-		mov	bh,4			; packet size in bytes
-		PS2serv 0C205h,@@noPS2w		; -X- KoKo: 4 byte protocol
-		mov	ah,200			; -X- KoKo: repeat magic...
-		call	setRate
-		jc	@@noPS2w
-		mov	ah,100
-		call	setRate
-		jc	@@noPS2w
-		mov	ah,80
-		call	setRate
-		jc	@@noPS2w
-		pop	bx
-		pop	ax
-;	end_
-;	end_
-@@ps2w2:
-
-;-----
-
-; -X-		mov	byte ptr [IRQintnum],68h+12
-		; no handler yet, enabledriver_20 does int 15/C207, 15/C200
-		clc
-		ret
-@@noPS2w:	pop	bx
-		pop	ax
-@@noPS2:	stc
-		ret
-checkPS2	endp
-
-;========================================================================
-
-; Set mouse sampling rate to AH samples per second
-; -X- old version changed DX and (!) ES
-setRate		proc
-if 0
-		push	ax
-		mov	dx,0D464h		; enable mouse functions
-		call	outKBD
-		mov	dx,0F360h		; set rate...
-		call	flushKBD		; should be 0FAh (ACK) or 0FEh (resend)
-
-		mov	dx,0D464h		; enable mouse functions
-		call	outKBD
-		pop	dx
-		mov	dl,60h			; ...value
-		;j	flushKBD		; should be 0FAh (ACK) or 0FEh (resend)
-else
-		push	ax
-		mov	al,6
-		cmp 	ah,200
-		jz	@@RATEFOUND
-		dec	ax			; OPTIMIZE: instead of AL
-		cmp	ah,100
-		jz	@@RATEFOUND
-		dec	ax			; OPTIMIZE: instead of AL
-		cmp	ah,80
-		jz	@@RATEFOUND
-		dec	ax			; OPTIMIZE: instead of AL
-		cmp	ah,60
-		jz	@@RATEFOUND
-		dec	ax			; OPTIMIZE: instead of AL
-		cmp	ah,40
-		jz	@@RATEFOUND
-		dec	ax			; OPTIMIZE: instead of AL
-		cmp	ah,20
-		jz	@@RATEFOUND
-		dec	ax			; OPTIMIZE: instead of AL
-		cmp	ah,10
-		jz	@@RATEFOUND
-		; else: invalid rate selected, using 10 Hz :-p
-@@RATEFOUND:	push	bx
-		mov	bh,al			; the rate
-		PS2serv	0C202h,@@RATEERR	; set rate
-		clc
-		pop	bx
-		pop	ax
-		ret
-@@RATEERR:	stc
-		pop	bx
-		pop	ax
-		ret
-endif
-SetRate		endp
-
-;========================================================================
-; In:	DL			(port)
-;	DH			(value)
-; Out:	AH
-; Use:	0:46Ch
-; Modf:	AL, DX, ES
-; Call:	outKBD
-;
-if 0
-flushKBD	proc
-		call	outKBD
-
-		mov	ah,0
-@@inKBDstart:	MOVSEG	es,0,dx,BIOS
-	loop_
-		mov	dl,byte ptr [BIOS_timer]
-	 loop_
-		in	al,64h			; keyboard status register
-		test	al,00000001b	; =1
-	  if_ nz				; if read buffer full
-		 inb	ah,60h
-		 j	@@inKBDstart		; wait next byte
-	  end_
-		cmp	dl,byte ptr [BIOS_timer]
-	 until_ ne				; loop until next timer tick
-		xor	dh,1
-	until_ zero				; loop until end of 2nd tick
-		clc
-		ret
-flushKBD	endp
-endif
-
-;========================================================================
-;			Send command to auxiliary device
-;========================================================================
-;
-; In:	DL			(port)
-;	DH			(value)
-; Out:	none
-; Use:	0:46Ch
-; Modf:	AL, DH, ES
-; Call:	none
-;
-if 0
-outKBD		proc
-		push	dx
-		MOVSEG	es,0,dx,BIOS
-	loop_
-		mov	dl,byte ptr [BIOS_timer]
-	 loop_
-		in	al,64h			; keyboard status register
-		test	al,00000010b	; =2	; check if we can send data
-		 jz	@@outKBD		; jump if write buffer empty
-		cmp	dl,byte ptr [BIOS_timer]
-	 until_ ne				; loop until next timer tick
-		xor	dh,1
-	until_ zero				; loop until end of 2nd tick
-
-@@outKBD:	pop	dx
-		mov	al,dh
-		mov	dh,0
-		out	dx,al
-		ret
-outKBD		endp
-endif
-
-;========================================================================
-;				Set COM port
-;========================================================================
-;
-; In:	AL			(COM port, 1-4)
-; Out:	none
-; Use:	0:400h
-; Modf:	AL, CL, ES, com_port, IO_address, S_atIO
-; Call:	setIRQ
-;
-setCOMport	proc
-		push	ax
-		push	di
-		add	al,'0'
-		mov	[com_port],al
-
-		cbw				; OPTIMIZE: instead MOV AH,0
-		xchg	di,ax			; OPTIMIZE: instead MOV DI,AX
-		MOVSEG	es,0,ax,BIOS
-		add	di,di
-		mov	ax,COM_base[di-'1'-'1']
-		mov	[IO_address],ax
-
-		mov	di,dataref:S_atIO	; string for 4 digits
-		MOVSEG	es,ds,,@data
-		_word_hex
-
-		pop	di
-		pop	ax
-		and	al,1			; 1=COM1/3, 0=COM2/4
-		add	al,3			; IRQ4 for COM1/3
-		;j	setIRQ			; IRQ3 for COM2/4
-setCOMport	endp
-
-;========================================================================
-;				Set IRQ number
-;========================================================================
-;
-; In:	AL			(IRQ#, 1-7)
-; Out:	none
-; Use:	none
-; Modf:	AL, CL, IRQno, mouseinfo, IRQintnum, PIC1state, notPIC1state
-; Call:	none
-;
-setIRQ		proc
-		add	al,'0'
-		mov	[IRQno],al
-		sub	al,'0'
-		mov	mouseinfo[0],al
-		mov	cl,al
-		add	al,8			; INT=IRQ+8
-		mov	[IRQintnum],al
-		mov	al,1
-		shl	al,cl			; convert IRQ into bit mask
-		mov	[PIC1state],al		; PIC interrupt disabler
-		not	al
-		mov	[notPIC1state],al	; PIC interrupt enabler
-		ret
-setIRQ		endp
 
 ;========================================================================
 ;		Check if CuteMouse driver is installed
@@ -4656,18 +2403,14 @@ mousedrv	endp
 ;========================================================================
 
 _serialopt	proc
+; PHASE2: becomes /SA /SB (7201 channel); the digits are parsed and ignored
 		mov	bx,(4 shl 8)+1
 		call	parsedigit
-;	if_ nc					; '/Sc' -> set COM port
+;	if_ nc					; '/Sc'
 	jc @@soc
-;		setflag	[options],OPT_COMforced
-		or byte ptr [options], OPT_COMforced	; TASM optimizes
-		call	setCOMport
-
 		;mov	bl,1
 		mov	bh,7
-		call	parsedigit
-		jnc	setIRQ			; '/Sci' -> set IRQ line
+		call	parsedigit		; '/Sci'
 ;	end_
 @@soc:
 		ret
@@ -4735,22 +2478,6 @@ parsedigit	proc
 parsedigit	endp
 
 ;========================================================================
-;		Check if mouse services already present
-;========================================================================
-
-_checkdriver	proc
-		mov	cx,word ptr oldint33[2]
-		jcxz	@ret
-		;mov	ah,0
-		mov	al,21h			; OPTIMIZE: AL instead AX
-		int	33h
-		inc	ax
-		jnz	@ret
-		mov	di,dataref:E_mousepresent ; 'Mouse service already...'
-		j	EXITMSG
-_checkdriver	endp
-
-;========================================================================
 .const
 
 cmOPTION	struc	; OPTION is a reserved word in some MASM / TASM
@@ -4759,24 +2486,15 @@ cmOPTION	struc	; OPTION is a reserved word in some MASM / TASM
   optproc@	dw ?
 cmOPTION ends
 
-OPTABLE		cmOPTION <'P',OPT_PS2,			@ret>
-		cmOPTION <'O',OPT_Wheel,			@ret>
-		cmOPTION <'S',OPT_serial,			_serialopt>
-		cmOPTION <'V',OPT_PS2after,		@ret>
+OPTABLE		cmOPTION <'S',OPT_serial,			_serialopt>
 		cmOPTION <'3' and not 20h,OPT_3button,	@ret>
 		cmOPTION <'R',,				_resolution>
 		cmOPTION <'L',OPT_lefthand,		@ret>
-		cmOPTION <'B',,				_checkdriver>
-		cmOPTION <'N',OPT_newTSR,			@ret>
-		cmOPTION <'W',OPT_noUMB,			@ret>
 		cmOPTION <'U',,				unloadTSR>
 		cmOPTION <'?' and not 20h,,		EXITMSG>
-		; ignore the old "disable mouse systems" option
-		; default is now to disable old mouse systems, as
-		; those can be confused with empty serial ports.
-		cmOPTION <'Y',,				@ret>
-		; new option to "enable mouse systems"...
+if USE_MSYS
 		cmOPTION <'M',OPT_MSYS,			@ret>
+endif
 OPTABLEend	label byte
 
 .code
@@ -4897,15 +2615,15 @@ EXITENABLE::	mov	al,20h			; enable old/current driver
 unloadTSR	endp
 
 ;========================================================================
-; Prepare memory for TSR
+; Prepare memory for TSR (the TSR always stays in place)
 ;
 ; In:	BX			(TSR size)
 ;	DS			(PSP segment)
 ; Out:	ES			(memory segment to be TSR)
 ;	CH			(exit code for INT 21)
-; Use:	PSP:2Ch, MCB:8
-; Modf:	AX, CL, DX, SI, DI
-; Call:	INT 21/49, AllocUMB
+; Use:	PSP:2Ch
+; Modf:	AH
+; Call:	INT 21/49
 ;
 prepareTSR	proc
 		assume	ds:PSP
@@ -4916,30 +2634,9 @@ prepareTSR	proc
 ;	end_
 @@prepcxz:
 		assume	ds:@data
-
-		call	AllocUMB
-		mov	ax,ds
 		mov	ch,31h			; TSR exit, al=return code
-		cmp	dx,ax
-;	if_ ne					; if TSR not "in place"
-	jz @@prepz
 		push	ds
-		dec	ax			; current MCB
-		dec	dx			; target MCB...
-						; ...copy process name
-		memcopy	8,dx,MCB,MCB:ownername,ax,MCB,MCB:ownername
-		POPSEG	ds,@data
-		inc	ax			; current PSP
-		inc	dx			; target PSP
-		mov	[MCB:ownerID],dx	; ...set owner to itself
-						; ...copy current PSP
-						; (this makes PC-DOS MEM happy)
-		memcopy	256,dx,PSP,PSP:DOS_exit,ax,PSP,PSP:DOS_exit
-
-		mov	ch,4Ch			; terminate, al=return code
-;	end_ if
-@@prepz:
-		mov	es,dx
+		pop	es
 ;		mov	es:[PSP:DOS_exit],cx	; memory shouldn't be
 						;  interpreted as PSP
 						;  (CX != 20CDh)
@@ -4951,176 +2648,14 @@ prepareTSR	endp
 ;=========================== MEMORY HANDLING ============================
 
 ;========================================================================
-; Get XMS handler address
-;
-; In:	none
-; Out:	Carry flag		(set if no XMS support)
-; Use:	none
-; Modf:	AX, CX, BX, XMSentry
-; Call:	INT 2F/4300, INT 2F/4310
-;
-if 0
-getXMSaddr	proc	C uses es
-		DOSGetIntr 2Fh			; suggested by Matthias Paul
-		mov	cx,es
-		stc
-;	if_ ncxz				; if INT 2F initialized
-	jcxz @@gxacxz
-		mov	ax,4300h
-		int	2Fh			; XMS: installation check
-		cmp	al,80h
-		stc
-;	andif_ eq				; if XMS service present
-	jnz @@gxacxz
-		mov	ax,4310h		; XMS: Get Driver Address
-		int	2Fh
-		saveFAR [XMSentry],es,bx
-		clc
-;	end_
-@@gxacxz:
-		ret
-getXMSaddr	endp
-endif
-
-;========================================================================
-; Save allocation strategy
-;
-; In:	none
-; Out:	Carry flag		(no UMB link supported)
-; Use:	none
-; Modf:	AX, SaveMemStrat, SaveUMBLink
-; Call:	INT 21/5800, INT 21/5802
-;
-SaveStrategy	proc
-		DOSGetAlloc			; get DOS alloc strategy
-		mov	[SaveMemStrat],ax
-		DOSGetUMBlink			; get UMB link state
-		mov	[SaveUMBLink],al
-		ret
-SaveStrategy	endp
-
-;========================================================================
-; Restore allocation strategy
-;
-; In:	none
-; Out:	none
-; Use:	SaveMemStrat, SaveUMBLink
-; Modf:	AX, BX
-; Call:	INT 21/5801, INT 21/5803
-;
-RestoreStrategy	proc
-;	CODE_	MOV_BX	SaveMemStrat,<dw ?>
-		OPCODE_MOV_BX
-SaveMemStrat	dw ?
-		DOSSetAlloc			; set DOS alloc strategy
-;	CODE_	MOV_BX	SaveUMBLink,<db ?,0>
-		OPCODE_MOV_BX
-SaveUMBLink	db ?,0
-		DOSSetUMBlink			; set UMB link state
-		ret
-RestoreStrategy	endp
-
-;========================================================================
-; Allocate high memory
-;
-; In:	BX			(required memory size in para)
-;	DS			(current memory segment)
-; Out:	DX			(seg of new memory or DS)
-; -X- Use:	XMSentry
-; Modf:	AX, ES
-; Call:	INT 21/48, INT 21/49, INT 21/58,
-;	SaveStrategy, RestoreStrategy, getXMSaddr
-;
-AllocUMB	proc
-		push	bx
-;		testflag [options],OPT_noUMB
-		test byte ptr [options], OPT_noUMB	; 80h, TASM optimizes
-		jnz	@@allocasis		; jump if UMB prohibited
-		mov	ax,ds
-		cmp	ah,0A0h
-		jae	@@allocasis		; jump if already loaded hi
-
-;----- check if UMB is a DOS type
-
-		call	SaveStrategy
-		DOSSetUMBlink UMB_LINK		; add UMB to MCB chain
-
-		mov	bl,HI_BESTFIT		; OPTIMIZE: BL instead BX
-		DOSSetAlloc			; try best strategy to
-						;  allocate DOS UMBs
-;	if_ carry
-	jnc @@nhilo
-		mov	bl,HILOW_BESTFIT	; OPTIMIZE: BL instead BX
-		DOSSetAlloc			; try a worse one then
-;	end_
-@@nhilo:
-
-		pop	bx
-		push	bx
-		DOSAlloc			; allocate UMB (size in BX)
-		pushf
-		xchg	dx,ax			; OPTIMIZE: instead MOV DX,AX
-		call	RestoreStrategy		; restore allocation strategy
-		popf
-;	if_ nc
-	jc @@allc
-		cmp	dh,0A0h			; exit if allocated mem is
-		jae	@@allocret		;  is above 640k (segment
-		DOSFreeMem dx			;  0A000h) else free it
-;	end_
-@@allc:
-
-if 0
-;----- try a XMS manager to allocate UMB
-
-		call	getXMSaddr
-;	if_ nc
-	jc @@xmsc
-		pop	dx
-		push	dx
-		mov	ah,10h			; XMS: Request UMB (size=DX)
-		call	[XMSentry]		; ...AX=1 -> BX=seg, DX=size
-		dec	ax
-;	andif_ zero
-	jnz @@xmsc
-		pop	ax
-		push	ax
-		cmp	bx,ax
-		mov	dx,bx
-		jae	@@allocret
-		mov	ah,11h			; XMS: Release UMB (seg=DX)
-		call	[XMSentry]
-;	end_
-@@xmsc:
-endif
-
-;----- use current memory segment
-
-@@allocasis:	mov	dx,ds
-
-@@allocret:	pop	bx
-		ret
-AllocUMB	endp
-
-;========================================================================
 ; In:	ES			(segment to free)
 ; Out:	none
-; Use:	XMSentry
-; Modf:	AH, DX
-; Call:	INT 21/49, getXMSaddr
+; Use:	none
+; Modf:	AH
+; Call:	INT 21/49
 ;
 FreeMem		proc
 		assume	es:nothing
-if 0
-		call	getXMSaddr
-;	if_ nc
-	jc @@fmc
-		mov	dx,es
-		mov	ah,11h			; XMS: Release UMB
-		call_far XMSentry
-;	end_
-@@fmc:
-endif
 		DOSFreeMem			; free allocated memory
 		ret
 FreeMem		endp
